@@ -1,253 +1,284 @@
 """
-==========================================================
-BASE MODELS DO SISTEMA (VERSÃO COM MÚLTIPLOS PAPÉIS)
-==========================================================
+===============================================================================
+MODELOS BASE DO SISTEMA
+===============================================================================
 
-Define:
+Este arquivo define:
 
-• Enums de domínio
-• Modelos SQLAlchemy
-• Relacionamentos
-• Sistema RBAC N:N
-• Blueprint (estrutura de prova/simulado)
+• Base declarativa do SQLAlchemy
+• Enums institucionais
+• Tabelas principais do sistema
+• Relacionamentos N:N e 1:N
+• Índices estratégicos
+• Configurações de integridade referencial
 
-Arquitetura:
+IMPORTANTE:
+Este arquivo é o coração do banco de dados.
+Qualquer erro aqui impacta todo o sistema.
 
-users
-roles
-user_roles (N:N)
-blueprints
+===============================================================================
 """
 
-# ==========================================================
+# =============================================================================
 # IMPORTS
-# ==========================================================
-
-from enum import Enum as PyEnum
-from sqlalchemy import Enum as SQLEnum
+# =============================================================================
 
 from sqlalchemy import (
     Column,
     Integer,
     String,
     Boolean,
-    Text,
     ForeignKey,
-    UniqueConstraint,
-    Table
+    Enum,
+    Text,
+    Table,
+    DateTime,
+    func
 )
-
-from sqlalchemy.orm import relationship, Mapped, mapped_column
-from app.core.db import Base
-
-
-# ==========================================================
-# ENUMS
-# ==========================================================
-
-class BimesterEnum(str, PyEnum):
-    B1 = "1º BIMESTRE"
-    B2 = "2º BIMESTRE"
-    B3 = "3º BIMESTRE"
-    B4 = "4º BIMESTRE"
+from sqlalchemy.orm import relationship, declarative_base
+import enum
 
 
-class AreaConhecimentoEnum(str, PyEnum):
-    LINGUAGENS = "Linguagens e Códigos"
-    MATEMATICA = "Matemática"
-    CIENCIAS_NATUREZA = "Ciências da Natureza"
-    CIENCIAS_HUMANAS = "Ciências Humanas"
+# =============================================================================
+# BASE DECLARATIVA
+# =============================================================================
+
+Base = declarative_base()
 
 
-class DifficultyEnum(str, PyEnum):
-    EASY = "Fácil"
-    MEDIUM = "Médio"
-    HARD = "Difícil"
+# =============================================================================
+# ENUMS INSTITUCIONAIS
+# =============================================================================
+
+class DifficultyEnum(str, enum.Enum):
+    """
+    Níveis de dificuldade pedagógica.
+    Usado na geração de provas e blueprint.
+    """
+    EASY = "EASY"
+    MEDIUM = "MEDIUM"
+    HARD = "HARD"
 
 
-class ItemTypeEnum(str, PyEnum):
-    MCQ = "Múltipla escolha"
-    NUMERIC = "Numérica"
-    OPEN = "Aberta"
+class ItemTypeEnum(str, enum.Enum):
+    """
+    Tipo da questão.
+    Permite expansão futura.
+    """
+    MULTIPLE_CHOICE = "MULTIPLE_CHOICE"
+    DISCURSIVE = "DISCURSIVE"
+    NUMERIC = "NUMERIC"
 
 
-# ==========================================================
-# USER_ROLES (N:N)
-# ==========================================================
+# =============================================================================
+# TABELA DE ASSOCIAÇÃO USER <-> ROLE (N:N)
+# =============================================================================
 
 user_roles = Table(
     "user_roles",
     Base.metadata,
-    Column("user_id", ForeignKey("users.id"), primary_key=True),
-    Column("role_id", ForeignKey("roles.id"), primary_key=True),
+    Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("role_id", ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
-# ==========================================================
+# =============================================================================
 # ROLE
-# ==========================================================
+# =============================================================================
 
 class Role(Base):
+    """
+    Define papéis institucionais.
+    Ex:
+    - ADMIN
+    - COORDINATOR
+    - TEACHER
+    """
+
     __tablename__ = "roles"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    name: Mapped[str] = mapped_column(
-        String(50),
-        unique=True,
-        nullable=False
-    )
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), unique=True, nullable=False, index=True)
 
     users = relationship(
         "User",
-        secondary="user_roles",
+        secondary=user_roles,
         back_populates="roles"
     )
 
+    def __repr__(self):
+        return f"<Role(name={self.name})>"
 
-# ==========================================================
+
+# =============================================================================
 # USER
-# ==========================================================
+# =============================================================================
 
 class User(Base):
+    """
+    Usuário do sistema.
+    Pode ter múltiplos papéis (RBAC real).
+    """
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
 
-    name = Column(String(120), nullable=False)
-
-    email = Column(
-        String(120),
-        nullable=False,
-        unique=True,
-        index=True
-    )
-
+    name = Column(String(100), nullable=False)
+    email = Column(String(150), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-
-    roles = relationship(
-        "Role",
-        secondary="user_roles",
-        back_populates="users"
-    )
 
     is_active = Column(Boolean, default=True)
 
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-# ==========================================================
+    roles = relationship(
+        "Role",
+        secondary=user_roles,
+        back_populates="users"
+    )
+
+    items = relationship(
+        "Item",
+        back_populates="owner",
+        cascade="all, delete"
+    )
+
+    def __repr__(self):
+        return f"<User(email={self.email})>"
+
+
+# =============================================================================
 # DISCIPLINE
-# ==========================================================
+# =============================================================================
 
 class Discipline(Base):
+    """
+    Disciplina curricular.
+    Ex:
+    - Matemática
+    - Física
+    - Biologia
+    """
+
     __tablename__ = "disciplines"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(120), nullable=False, unique=True)
+    name = Column(String(150), unique=True, nullable=False, index=True)
+
+    skills = relationship(
+        "Skill",
+        back_populates="discipline",
+        cascade="all, delete"
+    )
+
+    items = relationship(
+        "Item",
+        back_populates="discipline",
+        cascade="all, delete"
+    )
+
+    def __repr__(self):
+        return f"<Discipline(name={self.name})>"
 
 
-# ==========================================================
+# =============================================================================
 # SKILL
-# ==========================================================
+# =============================================================================
 
 class Skill(Base):
+    """
+    Habilidade vinculada a uma disciplina.
+    Ex:
+    - EM13MAT101
+    - Resolver equações do 2º grau
+    """
+
     __tablename__ = "skills"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id = Column(Integer, primary_key=True)
 
-    code: Mapped[str] = mapped_column(
-        String(50),
-        unique=True,
-        index=True
-    )
+    code = Column(String(50), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=False)
 
-    description: Mapped[str] = mapped_column(String(255))
-
-
-# ==========================================================
-# BLUEPRINT (ADICIONADO)
-# ==========================================================
-
-class Blueprint(Base):
-    """
-    Representa um modelo estrutural de prova/simulado.
-
-    Exemplo:
-    - Simulado ENEM Matemática 1º ano
-    - Avaliação 2º Bimestre Ciências
-
-    Não armazena itens.
-    Apenas define uma estrutura organizacional.
-    """
-
-    __tablename__ = "blueprints"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    name: Mapped[str] = mapped_column(
-        String(150),
+    discipline_id = Column(
+        Integer,
+        ForeignKey("disciplines.id", ondelete="CASCADE"),
         nullable=False
     )
 
-    description: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True
+    discipline = relationship(
+        "Discipline",
+        back_populates="skills"
     )
 
+    items = relationship(
+        "Item",
+        back_populates="skill"
+    )
 
-# ==========================================================
-# ITEM
-# ==========================================================
+    def __repr__(self):
+        return f"<Skill(code={self.code})>"
+
+
+# =============================================================================
+# ITEM (QUESTÃO)
+# =============================================================================
 
 class Item(Base):
+    """
+    Representa uma questão avaliativa.
+    Pode ser múltipla escolha, discursiva ou numérica.
+    """
+
     __tablename__ = "items"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id = Column(Integer, primary_key=True)
 
-    owner_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
-        nullable=False
-    )
-
-    discipline_id: Mapped[int] = mapped_column(
-        ForeignKey("disciplines.id"),
-        nullable=False
-    )
-
-    serie: Mapped[str] = mapped_column(String(10), nullable=False)
-
-    skill_id: Mapped[int | None] = mapped_column(
-        ForeignKey("skills.id"),
+    owner_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True
     )
 
-    difficulty: Mapped[DifficultyEnum] = mapped_column(
-        SQLEnum(
-            DifficultyEnum,
-            name="difficultyenum",
-            native_enum=True,
-            create_constraint=True
-        ),
-        nullable=False,
-        default=DifficultyEnum.MEDIUM
+    discipline_id = Column(
+        Integer,
+        ForeignKey("disciplines.id", ondelete="CASCADE"),
+        nullable=False
     )
 
-    item_type: Mapped[ItemTypeEnum] = mapped_column(
-        SQLEnum(
-            ItemTypeEnum,
-            name="itemtypeenum",
-            native_enum=True,
-            create_constraint=True
-        ),
-        nullable=False,
-        default=ItemTypeEnum.MCQ
+    skill_id = Column(
+        Integer,
+        ForeignKey("skills.id", ondelete="SET NULL"),
+        nullable=True
     )
 
-    stem: Mapped[str] = mapped_column(Text, nullable=False)
-    options_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    numeric_answer: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    media_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    latex: Mapped[bool] = mapped_column(Boolean, default=False)
+    serie = Column(String(20), nullable=False, index=True)
 
-    owner = relationship("User")
-    discipline = relationship("Discipline")
-    skill = relationship("Skill")
+    difficulty = Column(
+        Enum(DifficultyEnum),
+        nullable=False
+    )
+
+    item_type = Column(
+        Enum(ItemTypeEnum),
+        nullable=False
+    )
+
+    stem = Column(Text, nullable=False)
+
+    options_json = Column(Text, nullable=True)
+    numeric_answer = Column(String(50), nullable=True)
+    media_url = Column(String(255), nullable=True)
+
+    latex = Column(Boolean, default=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relacionamentos
+    owner = relationship("User", back_populates="items")
+    discipline = relationship("Discipline", back_populates="items")
+    skill = relationship("Skill", back_populates="items")
+
+    def __repr__(self):
+        return f"<Item(id={self.id}, difficulty={self.difficulty})>"

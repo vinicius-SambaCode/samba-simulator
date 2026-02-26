@@ -1,57 +1,40 @@
-"""
-Seed inicial do sistema
-Cria papéis padrão e usuário root se não existirem.
-"""
-
-from app.core.db import SessionLocal
-from app.models.base_models import User, Role
-from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+from app.models.models import User
+from app.models.models import Role
+from app.core.security import hash_password
+from datetime import datetime
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def seed_roles(db: Session):
+    roles = ["admin", "teacher", "student"]
+
+    for role_name in roles:
+        exists = db.query(Role).filter(Role.name == role_name).first()
+        if not exists:
+            db.add(Role(name=role_name))
+
+    db.commit()
 
 
-def seed_root_user():
-    db = SessionLocal()
+def seed_admin(db: Session):
+    admin_email = "admin@samba.local"
 
-    try:
-        # =========================
-        # Criar roles padrão
-        # =========================
-        default_roles = ["ADMIN", "COORDINATOR", "TEACHER"]
+    admin = db.query(User).filter(User.email == admin_email).first()
+    if admin:
+        return
 
-        for role_name in default_roles:
-            existing_role = db.query(Role).filter(Role.name == role_name).first()
-            if not existing_role:
-                db.add(Role(name=role_name))
+    new_admin = User(
+        name="Administrador",
+        email=admin_email,
+        password_hash=hash_password("admin123"),
+        is_active=True,
+        created_at=datetime.utcnow()
+    )
 
-        db.commit()
+    db.add(new_admin)
+    db.commit()
 
-        # =========================
-        # Criar usuário root
-        # =========================
-        root_email = "admin@samba.com"
 
-        existing_user = db.query(User).filter(User.email == root_email).first()
-
-        if not existing_user:
-            admin_role = db.query(Role).filter(Role.name == "ADMIN").first()
-
-            hashed_password = pwd_context.hash("admin123")
-
-            root_user = User(
-                name="Administrador",
-                email=root_email,
-                password_hash=hashed_password,
-                roles=[admin_role],
-            )
-
-            db.add(root_user)
-            db.commit()
-
-            print("Usuário root criado com sucesso.")
-        else:
-            print("Usuário root já existe.")
-
-    finally:
-        db.close()
+def run_seed(db: Session):
+    seed_roles(db)
+    seed_admin(db)
