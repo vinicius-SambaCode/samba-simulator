@@ -9,14 +9,14 @@ Apenas COORDINATOR pode criar/editar estruturas de escola.
 GETs podem ser abertos a TEACHER, conforme sua política (aqui deixei autenticado).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import get_current_user
 from app.core.dependencies import require_role
 from app.models.base_models import User
-from app.models.school import EducationLevel, SchoolGrade, ClassSection, SchoolClass
+from app.models.school import SchoolGrade, ClassSection, SchoolClass
 from app.schemas.school import (
     GradeCreate, GradeOut, SectionCreate, SectionOut, ClassCreate, ClassOut
 )

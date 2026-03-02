@@ -3,8 +3,7 @@
 Schemas (Pydantic) para séries/anos, turmas (seções) e classes.
 """
 
-from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from enum import Enum
 
 
@@ -26,10 +25,9 @@ class GradeOut(BaseModel):
     year_number: int
     label: str
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
 
-
+    model_config = ConfigDict()
 # ------------ Sections ------------
 class SectionCreate(BaseModel):
     label: str  # "A", "B", ...
@@ -39,10 +37,9 @@ class SectionOut(BaseModel):
     id: int
     label: str
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
 
-
+    model_config = ConfigDict()
 # ------------ Classes ------------
 class ClassCreate(BaseModel):
     grade_id: int
@@ -55,5 +52,6 @@ class ClassOut(BaseModel):
     section_id: int
     name: str
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
+
+    model_config = ConfigDict()

@@ -4,7 +4,7 @@ SCHEMAS - SKILL
 =========================================================
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SkillCreate(BaseModel):
@@ -17,5 +17,6 @@ class SkillOut(BaseModel):
     code: str
     description: str
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
+
+    model_config = ConfigDict()

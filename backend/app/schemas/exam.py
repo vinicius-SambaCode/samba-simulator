@@ -4,7 +4,7 @@ Pydantic Schemas para o módulo de Simulados (Sprint 1)
 """
 
 from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 
@@ -40,10 +40,9 @@ class ExamOut(BaseModel):
     answer_source: AnswerSource
     status: ExamStatus
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
 
-
+    model_config = ConfigDict()
 # ----------------------------
 # Alocações e cotas
 # ----------------------------

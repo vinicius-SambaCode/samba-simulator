@@ -3,7 +3,7 @@ Schemas do Blueprint
 Responsável pela validação de entrada e saída da API
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
@@ -25,5 +25,6 @@ class BlueprintOut(BaseModel):
     name: str
     description: Optional[str] = None
 
-    class Config:
-        from_attributes = True  # SQLAlchemy 2.0
+    # Pydantic v2: revisar opção não migrada: from_attributes = True  # SQLAlchemy 2.0
+
+    model_config = ConfigDict()

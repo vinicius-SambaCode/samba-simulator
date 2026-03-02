@@ -11,7 +11,7 @@ Validações fortes de quantidade de alternativas virão na rota (conforme optio
 """
 
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 
 def parse_pasted_questions(content: str) -> List[Dict]:

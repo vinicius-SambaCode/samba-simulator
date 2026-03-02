@@ -25,7 +25,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.models.base_models import Base, User
 from app.models.models import Discipline            # seu modelo de disciplina
-from app.models.school import SchoolClass, Student  # estruturas escolares
+from app.models.school import SchoolClass  # estruturas escolares
 
 # ---------------------------------------------------------------------------
 # Descobrir dinamicamente a tabela/PK de Discipline

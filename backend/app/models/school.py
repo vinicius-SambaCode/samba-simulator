@@ -10,11 +10,9 @@ Obs.: Mantemos UniqueConstraints para evitar duplicatas e facilitar o front.
 """
 
 from enum import Enum
-from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
-    Column, Integer, String, ForeignKey, UniqueConstraint, Enum as SAEnum, Index
+    Integer, String, ForeignKey, UniqueConstraint, Enum as SAEnum, Index
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 

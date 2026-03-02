@@ -16,7 +16,6 @@ Regras de negócio:
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 
 from app.core.db import get_db
 from app.core.security import get_current_user

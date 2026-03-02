@@ -16,7 +16,7 @@ Uso principal via routes/pdf.py
 """
 
 import os
-from typing import List, Tuple, Optional, Dict
+from typing import List, Optional, Dict
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -28,9 +28,8 @@ from reportlab.graphics.barcode import qr
 
 from sqlalchemy.orm import Session
 
-from app.models.exam import Exam, ExamStatus, ExamQuestionLink, Question, QuestionOption
-from app.models.school import Student, SchoolClass
-from app.models.models import Discipline
+from app.models.exam import Exam, ExamQuestionLink, Question, QuestionOption
+from app.models.school import Student
 
 
 # ------------------------------------------------------------------------------

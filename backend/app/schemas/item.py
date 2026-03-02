@@ -4,7 +4,7 @@ SCHEMAS - ITEM
 =========================================================
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from app.models.base_models import DifficultyEnum, ItemTypeEnum
 
@@ -29,5 +29,6 @@ class ItemOut(BaseModel):
     item_type: ItemTypeEnum
     stem: str
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
+
+    model_config = ConfigDict()

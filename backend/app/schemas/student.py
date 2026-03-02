@@ -8,7 +8,7 @@ Schemas (Pydantic) para Alunos (students)
 """
 
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class StudentCreate(BaseModel):
@@ -29,5 +29,6 @@ class StudentOut(BaseModel):
     name: str
     class_id: int
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
+
+    model_config = ConfigDict()

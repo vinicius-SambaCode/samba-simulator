@@ -8,7 +8,6 @@ from app.core.db import engine, Base
 # IMPORTANTE:
 # precisamos importar os models
 # para que eles sejam registrados no metadata
-from app.models import base_models
 
 print("Criando tabelas...")
 

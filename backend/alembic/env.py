@@ -35,10 +35,6 @@ from app.models.base_models import Base             # Declarative Base (fonte ú
 
 # Importa os módulos que REGISTRAM as tabelas no metadata:
 # (A ordem aqui não é crítica entre eles, mas precisam vir ANTES do target_metadata)
-from app.models import models                       # ex.: Discipline, e demais tabelas "clássicas"
-from app.models import school                       # SchoolGrade, ClassSection, SchoolClass, Student
-from app.models import exam                         # Exam, ExamDisciplineQuota, ExamTeacherAssignment, TeacherClassSubject, Question, ...
-from app.models import refresh_token                # RefreshToken
 
 # ------------------------------------------------------------------------------
 # 3) Configuração básica do Alembic

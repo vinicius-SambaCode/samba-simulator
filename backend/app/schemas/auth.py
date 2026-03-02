@@ -4,7 +4,7 @@ Schemas de autenticação e usuário (com Refresh Token)
 """
 
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 # ===============================
@@ -63,5 +63,6 @@ class UserOut(BaseModel):
     email: EmailStr
     roles: List[str]
 
-    class Config:
-        from_attributes = True  # compatível com objetos ORM
+    # Pydantic v2: revisar opção não migrada: from_attributes = True  # compatível com objetos ORM
+
+    model_config = ConfigDict()

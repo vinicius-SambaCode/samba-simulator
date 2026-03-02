@@ -5,7 +5,7 @@ SCHEMAS - DISCIPLINE
 Validação de entrada e saída da API
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class DisciplineCreate(BaseModel):
@@ -16,5 +16,6 @@ class DisciplineOut(BaseModel):
     id: int
     name: str
 
-    class Config:
-        from_attributes = True
+    # Pydantic v2: revisar opção não migrada: from_attributes = True
+
+    model_config = ConfigDict()
