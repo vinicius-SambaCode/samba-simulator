@@ -2,63 +2,64 @@
 
 import { useState } from "react";
 import { useAuth } from "@/store/auth";
+import { authFetch } from "@/lib/api";
 import { toast } from "sonner";
 
-/**
- * PDF:
- * - gera via POST /pdf/exams/{id}/pdf/generate?class_id=
- * - baixa via GET /pdf/exams/{id}/pdf/download?student_id=
- */
 export default function PdfPage() {
   const token = useAuth((s) => s.token);
 
   const [examId, setExamId] = useState("1");
   const [classId, setClassId] = useState("10");
   const [studentId, setStudentId] = useState("100");
-
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const [gerado, setGerado] = useState(false);
 
   async function gerar() {
-    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/pdf/exams/${examId}/pdf/generate?class_id=${classId}`;
-    const resp = await fetch(url, { method: "POST", headers });
-
-    if (!resp.ok) return toast.error("Erro ao gerar PDF — verifique o status LOCKED.");
-    toast.success("PDFs gerados!");
+    try {
+      const url = `/pdf/exams/${examId}/pdf/generate?class_id=${classId}`;
+      const resp = await authFetch(url, { method: "POST" }, token);
+      const body = await resp.text();
+      console.log("[PDF gerar] STATUS:", resp.status, "BODY:", body);
+      if (!resp.ok) return toast.error(body || "Erro ao gerar PDF.");
+      setGerado(true);
+      toast.success("PDFs gerados!");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao gerar");
+    }
   }
 
   async function baixar() {
-    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/pdf/exams/${examId}/pdf/download?student_id=${studentId}`;
-    const resp = await fetch(url, { method: "GET", headers });
+    try {
+      const url = `/pdf/exams/${examId}/pdf/download?student_id=${studentId}`;
+      const probe = await authFetch(url, { method: "GET" }, token);
+      const text = await probe.text();
+      console.log("[PDF baixar] STATUS:", probe.status, "BODY:", text);
+      if (probe.status === 404) return toast.error("Gere antes.");
+      if (!probe.ok) return toast.error(text || "Erro ao baixar");
 
-    if (resp.status === 404) return toast.error("Arquivo não encontrado — gere antes.");
-    if (!resp.ok) return toast.error("Erro ao baixar PDF");
-
-    const blob = await resp.blob();
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = `exam${examId}-student${studentId}.pdf`;
-    a.click();
-    URL.revokeObjectURL(href);
-
-    toast.success("Download iniciado!");
+      // baixa de fato
+      const resp = await authFetch(url, { method: "GET" }, token);
+      const blob = await resp.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href; a.download = `exam${examId}-student${studentId}.pdf`; a.click();
+      URL.revokeObjectURL(href);
+      toast.success("Download iniciado!");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao baixar");
+    }
   }
 
   return (
     <main className="p-6 space-y-4">
       <h1 className="text-xl font-bold">PDF</h1>
 
-      <input className="border p-2 rounded w-52" value={examId} onChange={(e) => setExamId(e.target.value)} />
-      <input className="border p-2 rounded w-52" value={classId} onChange={(e) => setClassId(e.target.value)} />
-      <input className="border p-2 rounded w-52" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
-
-      <button onClick={gerar} className="bg-blue-700 text-white p-2 rounded">
-        Gerar Turma
-      </button>
-
-      <button onClick={baixar} className="bg-emerald-700 text-white p-2 rounded">
-        Baixar Aluno
-      </button>
+      <div className="flex gap-2 items-center">
+        <input className="border p-2 rounded w-24" value={examId} onChange={(e) => setExamId(e.target.value)} placeholder="Exam ID" />
+        <input className="border p-2 rounded w-24" value={classId} onChange={(e) => setClassId(e.target.value)} placeholder="Class ID" />
+        <input className="border p-2 rounded w-24" value={studentId} onChange={(e) => setStudentId(e.target.value)} placeholder="Student ID" />
+        <button onClick={gerar} className="bg-blue-700 text-white p-2 rounded">Gerar Turma</button>
+        <button onClick={baixar} disabled={!gerado} className="bg-emerald-700 text-white p-2 rounded disabled:opacity-40">Baixar Aluno</button>
+      </div>
     </main>
   );
 }

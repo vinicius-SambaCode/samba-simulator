@@ -1,39 +1,28 @@
 "use client";
-
 import Link from "next/link";
 import { useAuth } from "@/store/auth";
 
-/**
- * Dashboard simples:
- * - Se não estiver logado, mostra link para /login.
- * - Se estiver com token armazenado, mostra links para as páginas do MVP.
- */
 export default function Home() {
   const token = useAuth((s) => s.token);
-
-  if (!token) {
-    return (
-      <main className="p-6 space-y-2">
-        <h1 className="text-2xl font-bold">SAMBA Simulator</h1>
-        <p className="text-red-600">Você não está logado.</p>
-        <Link href="/login" className="underline text-blue-700">
-          Ir para o login
-        </Link>
-      </main>
-    );
-  }
-
   return (
     <main className="p-6 space-y-4">
       <h1 className="text-2xl font-bold">Dashboard</h1>
-      <div className="flex gap-4">
-        <Link href="/disciplines" className="underline text-blue-700">
-          Disciplinas
-        </Link>
-        <Link href="/pdf" className="underline text-blue-700">
-          PDF
-        </Link>
-      </div>
+      {!token ? (
+        <div className="text-red-600">
+          Você não está logado. <Link className="underline" href="/login">Ir para o login</Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <Link href="/disciplines" className="border p-3 rounded bg-white">Disciplinas</Link>
+          <Link href="/grades" className="border p-3 rounded bg-white">Séries</Link>
+          <Link href="/sections" className="border p-3 rounded bg-white">Turmas</Link>
+          <Link href="/classes" className="border p-3 rounded bg-white">Classes</Link>
+          <Link href="/students" className="border p-3 rounded bg-white">Alunos</Link>
+          <Link href="/exams" className="border p-3 rounded bg-white">Exames</Link>
+          <Link href="/pdf" className="border p-3 rounded bg-white">PDF</Link>
+          <Link href="/answers" className="border p-3 rounded bg-white">Correção</Link>
+        </div>
+      )}
     </main>
   );
 }

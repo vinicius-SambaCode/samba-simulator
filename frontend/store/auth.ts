@@ -1,6 +1,6 @@
 /**
- * Estado global de autenticação (Zustand) **com persistência** (localStorage).
- * Isso evita perder o token ao recarregar ou navegar.
+ * Zustand com persistência em localStorage (chave "samba-auth").
+ * Assim o token não some ao recarregar a página.
  */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -16,6 +16,6 @@ export const useAuth = create<AuthState>()(
       token: null,
       setToken: (t) => set({ token: t }),
     }),
-    { name: "samba-auth" } // chave no localStorage
+    { name: "samba-auth" }
   )
 );

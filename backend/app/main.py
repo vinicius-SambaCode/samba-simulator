@@ -1,101 +1,74 @@
 # app/main.py
-from __future__ import annotations
+from __future__ import annotations  # <-- precisa estar no topo (ou após o docstring)
 
-from contextlib import asynccontextmanager
-from typing import List
-
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 from starlette.responses import Response
 
-from app.core.db import SessionLocal
-from app.core.seed import run_seed
-from app.core.settings import settings
-
-# Routers
-from app.routes.auth import router as auth_router
-from app.routes.discipline import router as discipline_router
-from app.routes.pdf import router as pdf_router
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Ciclo de vida da aplicação:
-      - STARTUP: executa o seed de dados mínimos (roles, admin)
-      - SHUTDOWN: local para liberar recursos, se necessário
-    """
-    # STARTUP
-    db: Session = SessionLocal()
-    try:
-      # Tentar sem travar a aplicação caso algo dê errado
-      run_seed(db)
-      print("🌱 Seed verificado/executado com sucesso.")
-    except Exception as e:
-      print(f"⚠️ Seed falhou: {e}")
-    finally:
-      db.close()
-
-    yield
-
-    # SHUTDOWN
-    # (adicione aqui se precisar encerrar conexões externas, etc.)
-
-
-def _normalize_origins(origins_raw: str | None) -> List[str]:
-    """
-    Lê origens do .env (ex.: 'http://localhost:3000,http://127.0.0.1:3000'),
-    normaliza removendo espaços/linhas vazias e aplica fallback seguro
-    para ambiente de desenvolvimento.
-    """
-    if not origins_raw:
-        return ["http://localhost:3000", "http://127.0.0.1:3000"]
-    items = [o.strip() for o in origins_raw.split(",") if o.strip()]
-    return items or ["http://localhost:3000", "http://127.0.0.1:3000"]
-
-
-# Instância FastAPI com lifespan
+# --- cria app ---
 app = FastAPI(
     title="SAMBA Simulator API",
-    version="1.0.0",
-    lifespan=lifespan,
+    version="0.1.0",
 )
 
-# ===== CORS (deve vir antes dos routers) =====
-ALLOWED_ORIGINS = _normalize_origins(getattr(settings, "CORS_ORIGINS", None))
+# --- CORS (antes de incluir routers) ---
+def _normalize_origins(raw: str | None) -> list[str]:
+    if not raw:
+        return ["http://localhost:3000", "http://127.0.0.1:3000"]
+    items = [o.strip() for o in raw.split(",") if o.strip()]
+    return items or ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+allowed_origins = _normalize_origins(os.getenv("CORS_ORIGINS"))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,   # ex.: ["http://localhost:3000"]
-    allow_credentials=False,         # use True apenas se usar cookies/credenciais
-    allow_methods=["*"],             # ou uma lista específica: ["GET","POST","OPTIONS",...]
-    allow_headers=["*"],             # ou lista específica: ["Authorization","Content-Type",...]
-    expose_headers=[],               # adicione se precisar expor algum header
-    max_age=600,                     # cache do preflight (OPTIONS)
+    allow_origins=allowed_origins,   # ex.: http://localhost:3000, http://127.0.0.1:3000
+    allow_credentials=False,         # deixe False enquanto usa Bearer no header (sem cookies)
+    allow_methods=["*"],
+    allow_headers=["*"],
+    max_age=600,
 )
 
-# ===== Security headers (após CORS) =====
+# --- Security headers / CSP ---
+DOC_PATH_PREFIXES = ("/docs", "/redoc", "/openapi.json")
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     resp: Response = await call_next(request)
+    # cabeçalhos base
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    # Ajuste o CSP conforme seu front (evite bloquear coisas necessárias)
-    resp.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none';"
-    # Em produção com HTTPS, você pode ativar HSTS:
-    # resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    app_env = os.getenv("APP_ENV", "production")
+    if request.url.path.startswith(DOC_PATH_PREFIXES) and app_env == "development":
+        # CSP permissivo o suficiente só para Swagger/Redoc em DEV
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self' data: blob'; "
+            "img-src 'self' data:; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; "
+            "font-src 'self' data:; "
+        )
+    else:
+        # CSP estrito para o restante
+        resp.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none';"
+
     return resp
 
+# --- Routers ---
+from app.routes.discipline import router as discipline_router  # ajuste nome/caminho conforme seu projeto
+app.include_router(discipline_router)
 
-# ===== Healthcheck =====
-@app.get("/healthz", tags=["health"])
+# Se você já criou Grades:
+# from app.routes.grade import router as grade_router
+# app.include_router(grade_router)
+
+# Se tiver PDF:
+# from app.routes.pdf import router as pdf_router
+# app.include_router(pdf_router)
+
+# --- Healthcheck ---
+@app.get("/healthz")
 def healthz():
     return {"status": "ok"}
-
-
-# ===== Routers (após middlewares) =====
-app.include_router(auth_router)
-app.include_router(discipline_router)
-app.include_router(pdf_router)
