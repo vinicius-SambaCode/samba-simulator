@@ -1,20 +1,43 @@
-# Python
+# --- Python ---
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-
-# Envs
+*.pyd
+*.so
+*.egg-info/
 .env
+.env.*
 .venv/
 venv/
 
-# Docker volumes / storage
-backend/storage/
+# --- Node/Next ---
+frontend/.next/
+frontend/node_modules/
+frontend/.eslintcache
 
-# Alembic cache
-backend/alembic/versions/__pycache__/
-
-# OS / IDE
-.DS_Store
+# --- IDE/OS ---
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
+
+# --- Testes/Cobertura ---
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# --- Docker ---
+**/.ruff_cache/
+**/.pytest_cache/
+**/storage/**/*
+!backend/storage/.gitkeep
+
+# --- Artefatos / temporários ---
+*.log
+*.tmp
+*.temp
+
+# --- Projeto específico ---
+samba-simulator/
+samba-simulator-OLD/
