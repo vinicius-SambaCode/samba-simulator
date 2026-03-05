@@ -1,7 +1,8 @@
-# backend/app/routes/discipline.py  (confira o nome do arquivo!)
+# backend/app/routes/discipline.py
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.core.db import get_db
 from app.core.permissions import require_role
@@ -11,6 +12,20 @@ from app.schemas.discipline import DisciplineCreate, DisciplineOut
 
 router = APIRouter(prefix="/disciplines", tags=["disciplines"])
 
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def _fetch_or_404(db: Session, discipline_id: int) -> Discipline:
+    obj = db.get(Discipline, discipline_id)
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+    return obj
+
+
+# -----------------------------
+# Listar todas
+# -----------------------------
 @router.get("/", response_model=List[DisciplineOut])
 def list_disciplines(
     db: Session = Depends(get_db),
@@ -18,8 +33,13 @@ def list_disciplines(
 ):
     return db.query(Discipline).all()
 
+
+# -----------------------------
+# Criar
+# -----------------------------
 @router.post(
-    "/", response_model=DisciplineOut,
+    "/",
+    response_model=DisciplineOut,
     dependencies=[Depends(require_role("ADMIN", "COORDINATOR"))],
 )
 def create_discipline(
@@ -30,10 +50,34 @@ def create_discipline(
     if exists:
         raise HTTPException(status_code=400, detail="Disciplina já existe")
     d = Discipline(name=data.name)
-    db.add(d); db.commit(); db.refresh(d)
+    db.add(d)
+    db.commit()
+    db.refresh(d)
     return d
 
-# >>> ADICIONE ESTES <<<
+
+# -----------------------------
+# NOVO: Buscar por ID (resolve 307→405 dos testes)
+# - Fornecemos as duas rotas: com e sem "/"
+# - A versão com "/" fica fora do schema para não duplicar no Swagger
+# -----------------------------
+@router.get("/{discipline_id}", response_model=DisciplineOut)
+@router.get(
+    "/{discipline_id}/",
+    response_model=DisciplineOut,
+    include_in_schema=False,
+)
+def get_discipline(
+    discipline_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return _fetch_or_404(db, discipline_id)
+
+
+# -----------------------------
+# Atualizar
+# -----------------------------
 @router.put(
     "/{discipline_id}/",  # item COM barra final
     response_model=DisciplineOut,
@@ -45,9 +89,9 @@ def update_discipline(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    d = db.get(Discipline, discipline_id)
-    if not d:
-        raise HTTPException(status_code=404, detail="Disciplina não encontrada")
+    d = _fetch_or_404(db, discipline_id)
+
+    # Impede nome duplicado em outro ID
     exists = (
         db.query(Discipline)
         .filter(Discipline.name == data.name, Discipline.id != discipline_id)
@@ -55,10 +99,16 @@ def update_discipline(
     )
     if exists:
         raise HTTPException(status_code=400, detail="Já existe disciplina com esse nome")
+
     d.name = data.name
-    db.commit(); db.refresh(d)
+    db.commit()
+    db.refresh(d)
     return d
 
+
+# -----------------------------
+# Deletar
+# -----------------------------
 @router.delete(
     "/{discipline_id}/",  # item COM barra final
     status_code=204,
@@ -69,8 +119,7 @@ def delete_discipline(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    d = db.get(Discipline, discipline_id)
-    if not d:
-        raise HTTPException(status_code=404, detail="Disciplina não encontrada")
-    db.delete(d); db.commit()
+    d = _fetch_or_404(db, discipline_id)
+    db.delete(d)
+    db.commit()
     return None

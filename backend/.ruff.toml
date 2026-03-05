@@ -1,0 +1,14 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "N", "A", "C4", "T20"]
+ignore = [
+  "E203",  # compatibilidade com black
+  "E501"   # deixar o black cuidar de linhas longas
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+``
