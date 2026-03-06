@@ -3,66 +3,83 @@ from __future__ import annotations
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from app.models.models import User, Role  # ajuste se seus modelos estiverem em outro módulo
+from app.models.models import User, Role
 from app.core.security import hash_password
+from app.core.db import SessionLocal
 
 
-def _get_or_create_role(db: Session, role_name: str) -> Role:
-    role = db.query(Role).filter(Role.name == role_name).first()
+def get_or_create_role(db: Session, name: str) -> Role:
+    role = db.query(Role).filter(Role.name == name).first()
+
     if not role:
-        role = Role(name=role_name)
+        role = Role(name=name)
         db.add(role)
         db.commit()
         db.refresh(role)
+
     return role
 
 
-def seed_roles(db: Session) -> None:
-    """
-    Garante a existência dos papéis básicos.
-    Observação:
-      - Alguns trechos do seu backend/testes usam "COORDINATOR" (caixa alta).
-      - Você já usa "admin/teacher/student" (minúsculos).
-    Para evitar dor de cabeça em rotas protegidas, criamos **ambos** quando fizer sentido.
-    """
-    base_roles = ["admin", "teacher", "student"]
-    # Inclua também "COORDINATOR" se suas rotas exigirem esse nome especificamente:
-    compat_roles = ["COORDINATOR"]
+def seed_roles(db: Session):
+    roles = [
+        "admin",
+        "teacher",
+        "student",
+        "COORDINATOR",
+    ]
 
-    for name in base_roles + compat_roles:
-        _get_or_create_role(db, name)
+    for r in roles:
+        get_or_create_role(db, r)
 
 
-def seed_admin(db: Session) -> None:
-    """
-    Cria o usuário admin padrão (se não existir) e vincula papéis relevantes.
-    """
-    admin_email = "admin@samba.local"
-    admin = db.query(User).filter(User.email == admin_email).first()
+def seed_admin(db: Session):
+    email = "admin@samba.local"
 
-    if not admin:
-        admin = User(
-            name="Administrador",
-            email=admin_email,
-            password_hash=hash_password("admin123"),
-            is_active=True,
-            created_at=datetime.utcnow(),
-        )
-        db.add(admin)
-        db.commit()
-        db.refresh(admin)
+    user = db.query(User).filter(User.email == email).first()
 
-    # Vincular papéis (ajuste conforme seu relationship)
-    # Se você tem `admin.roles` como relationship:
-    needed_roles = ["admin", "COORDINATOR"]
-    existing = {r.name for r in getattr(admin, "roles", [])}
-    for rname in needed_roles:
-        if rname not in existing:
-            role = _get_or_create_role(db, rname)
-            admin.roles.append(role)  # type: ignore[attr-defined]
+    if user:
+        print("✔ Admin já existe")
+        return
+
+    print("👤 Criando usuário admin...")
+
+    user = User(
+        name="Administrador",
+        email=email,
+        password_hash=hash_password("admin123"),
+        is_active=True,
+        created_at=datetime.utcnow(),
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    admin_role = get_or_create_role(db, "admin")
+    coord_role = get_or_create_role(db, "COORDINATOR")
+
+    user.roles.append(admin_role)
+    user.roles.append(coord_role)
+
     db.commit()
 
+    print("✅ Admin criado")
 
-def run_seed(db: Session) -> None:
+
+def run_seed(db: Session):
     seed_roles(db)
     seed_admin(db)
+
+
+def main():
+    db = SessionLocal()
+
+    try:
+        run_seed(db)
+        print("🌱 Seed executado com sucesso")
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

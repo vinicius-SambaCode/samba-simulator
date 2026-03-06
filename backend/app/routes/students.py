@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import get_current_user
-from app.core.dependencies import require_role
+from app.core.deps import require_role
 from app.models.base_models import User
 from app.models.school import Student, SchoolClass
 from app.schemas.student import StudentCreate, StudentUpdate, StudentOut

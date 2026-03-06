@@ -36,7 +36,7 @@ from app.core.security import (
 )
 
 # RBAC
-from app.core.dependencies import require_role
+from app.core.deps import require_role
 
 # Schemas
 from app.schemas.auth import (
