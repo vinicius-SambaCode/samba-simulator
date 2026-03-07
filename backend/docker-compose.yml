@@ -1,5 +1,12 @@
-services:
+version: "3.9"
 
+services:
+  # ------------------------------------------------------------------
+  # Banco de dados PostgreSQL
+  # - Nome interno do serviço: "samba_pg" -> este é o hostname que a API usa
+  # - Porta exposta no host: 5433 (para você conectar via psql/GUI na sua máquina)
+  # - Healthcheck: garante que a API só tente subir quando o DB estiver pronto
+  # ------------------------------------------------------------------
   db:
     image: postgres:15-alpine
     container_name: samba_pg
@@ -13,28 +20,47 @@ services:
       - "5433:5432"
     volumes:
       - samba_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready retorna 0 quando o servidor está aceitando conexões
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
     restart: unless-stopped
 
+  # ------------------------------------------------------------------
+  # API (FastAPI + Alembic + Seed)
+  # - Usa o .env para DATABASE_URL/DB_HOST etc.
+  # - Em dev, mantemos bind mount (.:/app) para hot-reload/edição no VSCode
+  # - depends_on com service_healthy -> só sobe quando Postgres estiver OK
+  # - Porta exposta 8000
+  # ------------------------------------------------------------------
   api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: samba_api
     depends_on:
-      - db
+      db:
+        condition: service_healthy    # <-- espera healthcheck do Postgres
     env_file:
       - .env
     environment:
+      # Você pode sobrepor variáveis aqui se quiser forçar algo em dev:
       APP_ENV: development
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
+      # Importante: deixe DATABASE_URL apontando para "samba_pg" (DB_HOST no .env)
       DATABASE_URL: ${DATABASE_URL}
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - .:/app              # <-- Em dev, seu código local sobrescreve o que foi COPY no build
       - storage:/app/storage
     restart: unless-stopped
+    # Se quiser forçar a API a aguardar além do healthcheck (opcional), use:
+    # command: ["/entrypoint.sh"]
 
 volumes:
   samba_pg_data:

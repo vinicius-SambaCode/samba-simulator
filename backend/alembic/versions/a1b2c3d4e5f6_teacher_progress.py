@@ -16,22 +16,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE progressstatusenum AS ENUM ('PENDING', 'PARTIAL', 'COMPLETE');
-        EXCEPTION WHEN duplicate_object THEN NULL;
-        END $$;
-    """)
-    op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE progresslogeventenum AS ENUM (
-                'QUESTION_ADDED', 'QUESTION_REMOVED',
-                'QUOTA_CHANGED', 'STATUS_CHANGED'
-            );
-        EXCEPTION WHEN duplicate_object THEN NULL;
-        END $$;
-    """)
-
     op.create_table(
         "exam_teacher_progress",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
@@ -41,11 +25,10 @@ def upgrade() -> None:
         sa.Column("class_id", sa.Integer(), sa.ForeignKey("school_classes.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("quota", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("submitted", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("status", sa.Enum("PENDING", "PARTIAL", "COMPLETE", name="progressstatusenum", create_type=False), nullable=False, server_default="PENDING"),
+        sa.Column("status", sa.String(20), nullable=False, server_default="PENDING"),
         sa.Column("last_updated_at", sa.DateTime(timezone=True), server_default=sa.text("NOW()"), nullable=False),
         sa.UniqueConstraint("exam_id", "teacher_user_id", "discipline_id", "class_id", name="uq_teacher_progress"),
     )
-
     op.create_table(
         "exam_progress_log",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
@@ -53,7 +36,7 @@ def upgrade() -> None:
         sa.Column("teacher_user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True),
         sa.Column("discipline_id", sa.Integer(), sa.ForeignKey("disciplines.id", ondelete="SET NULL"), nullable=True, index=True),
         sa.Column("class_id", sa.Integer(), sa.ForeignKey("school_classes.id", ondelete="SET NULL"), nullable=True, index=True),
-        sa.Column("event_type", sa.Enum("QUESTION_ADDED", "QUESTION_REMOVED", "QUOTA_CHANGED", "STATUS_CHANGED", name="progresslogeventenum", create_type=False), nullable=False),
+        sa.Column("event_type", sa.String(30), nullable=False),
         sa.Column("question_id", sa.Integer(), sa.ForeignKey("questions.id", ondelete="SET NULL"), nullable=True),
         sa.Column("quota_before", sa.Integer(), nullable=True),
         sa.Column("quota_after", sa.Integer(), nullable=True),
@@ -66,5 +49,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("exam_progress_log")
     op.drop_table("exam_teacher_progress")
-    op.execute("DROP TYPE IF EXISTS progresslogeventenum")
-    op.execute("DROP TYPE IF EXISTS progressstatusenum")
