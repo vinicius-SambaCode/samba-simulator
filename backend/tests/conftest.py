@@ -117,11 +117,14 @@ class ExamStub:
 @dataclass
 class ClassStub:
     id: int
-
+    name: str = "3ªD"  # ← adicionar este campo
 
 @dataclass
 class StudentStub:
     id: int
+    ra: str = "00000000"
+    name: str = "Aluno Fake"
+    class_id: int = 10
 
 
 @dataclass
@@ -288,7 +291,7 @@ class FakeSession:
             return _QueryStub(model, self._users)
 
         if name.endswith("Student"):
-            return _QueryStub(model, list(self._students.values()))
+            return _QueryStub(model, [])
 
         if name.endswith("SchoolClass"):
             return _QueryStub(model, list(self._classes.values()))
@@ -349,6 +352,10 @@ class FakeSession:
 
     def close(self) -> None:
         """No-op: não há conexão real para fechar."""
+        pass
+
+    def flush(self):
+        """No-op: método presente para compatibilidade, mas sem efeito real."""
         pass
 
 

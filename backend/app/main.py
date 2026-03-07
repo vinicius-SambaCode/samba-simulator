@@ -253,6 +253,8 @@ _routers = [
     "app.routes.blueprint",
     "app.routes.pdf",
     "app.routes.health",   # ← define o /health  (único lugar)
+    "app.routes.coordinator_dashboard",
+    "app.routes.questions_crud",
 ]
 
 for r in _routers:

@@ -3,31 +3,36 @@
 # =============================================================================
 #
 # RESPONSABILIDADE:
-#   Define todos os models ORM do modulo de simulados.
+#   Define todos os models ORM do módulo de simulados.
 #
-# O QUE MUDOU NO PASSO 5:
-#   ADICIONADOS dois novos models ao final do arquivo:
-#     ExamTeacherProgress  -> progresso consolidado por professor/disc/turma
-#     ExamProgressLog      -> historico imutavel de eventos (append-only)
+# HISTÓRICO DE MUDANÇAS:
 #
-#   Esses models correspondem as tabelas criadas na migration
-#   a1b2c3d4e5f6_teacher_progress.py
+#   Passo 5:
+#     - Adicionados ExamTeacherProgress e ExamProgressLog
+#     - Adicionados relacionamentos teacher_progress e progress_log em Exam
 #
-#   O model Exam recebeu dois novos relacionamentos:
-#     .teacher_progress -> lista de ExamTeacherProgress do simulado
-#     .progress_log     -> historico de eventos do simulado
+#   Passo 6:
+#     - CORREÇÃO: colunas status/event_type de ExamTeacherProgress e
+#       ExamProgressLog agora usam String (alinhado com a migration
+#       a1b2c3d4e5f6 que criou VARCHAR em vez de ENUM PostgreSQL).
+#       O ORM valida os valores via Python Enum — o banco armazena string.
+#     - NOVO: campos OMR adicionados ao model Exam:
+#         omr_rows          -> linhas da grade de respostas (padrão 10)
+#         omr_cols          -> colunas da grade (padrão 5 = A,B,C,D,E)
+#         omr_header_fields -> JSON com campos extras do cabeçalho da folha
+#         barcode_enabled   -> se True, imprime QR-code/barcode na folha
 #
-# ARQUITETURA DO MODULO:
+# ARQUITETURA DO MÓDULO:
 #   Exam                  -> o simulado em si
 #   ExamClassAssignment   -> turmas alocadas ao simulado
 #   ExamDisciplineQuota   -> cotas por disciplina
-#   ExamTeacherAssignment -> atribuicoes professor/disc/turma
-#   TeacherClassSubject   -> mapeamento institucional (quem da o que pra quem)
-#   Question              -> questoes enviadas pelos professores
-#   QuestionOption        -> alternativas de cada questao
-#   ExamQuestionLink      -> selecao final de questoes (com ordem e gabarito)
-#   ExamTeacherProgress   -> NOVO: progresso consolidado por professor
-#   ExamProgressLog       -> NOVO: historico imutavel de eventos
+#   ExamTeacherAssignment -> atribuições professor/disc/turma
+#   TeacherClassSubject   -> mapeamento institucional
+#   Question              -> questões enviadas pelos professores
+#   QuestionOption        -> alternativas de cada questão
+#   ExamQuestionLink      -> seleção final (com ordem e gabarito)
+#   ExamTeacherProgress   -> progresso consolidado por professor
+#   ExamProgressLog       -> histórico imutável de eventos
 # =============================================================================
 
 from datetime import datetime
@@ -45,8 +50,7 @@ from app.models.models import Discipline
 from app.models.school import SchoolClass
 
 # ---------------------------------------------------------------------------
-# Descoberta dinamica da tabela/PK de Discipline
-# Necessario porque o nome da tabela pode variar entre ambientes.
+# Descoberta dinâmica da tabela/PK de Discipline.
 # ---------------------------------------------------------------------------
 _DISC_TBL = Discipline.__tablename__
 _DISC_PK   = list(Discipline.__table__.primary_key.columns)[0].name
@@ -59,7 +63,7 @@ def _disc_pk_attr():
 
 
 # =============================================================================
-# Enums de negocio — Simulado
+# Enums de negócio — Simulado
 # =============================================================================
 
 class ExamStatus(str, Enum):
@@ -67,11 +71,11 @@ class ExamStatus(str, Enum):
     Ciclo de vida do simulado.
 
     DRAFT      -> recém criado, ainda sendo configurado
-    COLLECTING -> aberto para professores inserirem questoes
+    COLLECTING -> aberto para professores inserirem questões
     REVIEW     -> coleta encerrada, coordenador revisando
-    LOCKED     -> travado, pronto para geracao de PDFs
-    GENERATED  -> PDFs gerados e disponiveis
-    PUBLISHED  -> distribuido aos alunos
+    LOCKED     -> travado, pronto para geração de PDFs
+    GENERATED  -> PDFs gerados e disponíveis
+    PUBLISHED  -> distribuído aos alunos
     """
     DRAFT      = "draft"
     COLLECTING = "collecting"
@@ -83,17 +87,17 @@ class ExamStatus(str, Enum):
 
 class AnswerSource(str, Enum):
     """
-    Define quem fornece o gabarito das questoes.
+    Define quem fornece o gabarito das questões.
 
-    TEACHERS       -> cada professor informa o gabarito ao inserir a questao
-    COORDINATOR_OMR -> gabarito definido pelo coordenador via leitura optica
+    TEACHERS        -> cada professor informa ao inserir a questão
+    COORDINATOR_OMR -> gabarito definido pelo coordenador via leitura óptica
     """
     TEACHERS        = "teachers"
     COORDINATOR_OMR = "coordinator_omr"
 
 
 class QuestionSource(str, Enum):
-    """Origem/formato de inserção da questao."""
+    """Origem/formato de inserção da questão."""
     MANUAL = "manual"
     PASTE  = "paste"
     TXT    = "txt"
@@ -101,7 +105,7 @@ class QuestionSource(str, Enum):
 
 
 class QuestionState(str, Enum):
-    """Estado de revisao da questao."""
+    """Estado de revisão da questão."""
     DRAFT     = "draft"
     SUBMITTED = "submitted"
     APPROVED  = "approved"
@@ -109,20 +113,20 @@ class QuestionState(str, Enum):
 
 
 # =============================================================================
-# Enums de negocio — Progresso (NOVOS no Passo 5)
+# Enums de negócio — Progresso (adicionados no Passo 5)
 # =============================================================================
 
 class ProgressStatus(str, Enum):
     """
     Status do progresso de um professor em um recorte (exam+disc+turma).
 
-    PENDING  -> nenhuma questao inserida ainda
+    PENDING  -> nenhuma questão inserida ainda
     PARTIAL  -> pelo menos 1 inserida, mas abaixo da quota
     COMPLETE -> quota atingida ou superada
 
-    Regra de calculo (aplicada pela app ao atualizar ExamTeacherProgress):
+    Regra de cálculo (aplicada pela app ao atualizar ExamTeacherProgress):
         submitted == 0        -> PENDING
-        submitted < quota     -> PARTIAL
+        0 < submitted < quota -> PARTIAL
         submitted >= quota    -> COMPLETE
     """
     PENDING  = "PENDING"
@@ -132,10 +136,10 @@ class ProgressStatus(str, Enum):
 
 class ProgressLogEvent(str, Enum):
     """
-    Tipos de evento registrados no historico de progresso.
+    Tipos de evento registrados no histórico de progresso.
 
-    QUESTION_ADDED   -> professor inseriu uma questao
-    QUESTION_REMOVED -> questao removida (professor ou coordenador)
+    QUESTION_ADDED   -> professor inseriu uma questão
+    QUESTION_REMOVED -> questão removida (professor ou coordenador)
     QUOTA_CHANGED    -> coordenador alterou a quota da disciplina
     STATUS_CHANGED   -> status do progresso mudou
     """
@@ -153,15 +157,33 @@ class Exam(Base):
     """
     Representa um simulado completo.
 
-    Um simulado possui:
-    - Configuracao: titulo, area, numero de alternativas, fonte do gabarito
-    - Turmas alocadas (ExamClassAssignment)
-    - Cotas por disciplina (ExamDisciplineQuota)
-    - Atribuicoes de professor (ExamTeacherAssignment)
-    - Questoes inseridas pelos professores (Question)
-    - Selecao final de questoes com ordem e gabarito (ExamQuestionLink)
-    - Progresso consolidado por professor (ExamTeacherProgress) [NOVO]
-    - Historico de eventos (ExamProgressLog) [NOVO]
+    Campos de configuração geral:
+      title         -> título do simulado
+      area          -> área do conhecimento (ex.: "Ciências da Natureza")
+      options_count -> número de alternativas por questão (4 ou 5)
+      answer_source -> quem define o gabarito (professores ou OMR)
+      status        -> ciclo de vida do simulado
+
+    Campos OMR (NOVOS no Passo 6):
+      omr_rows          -> número de linhas da grade de respostas
+                           Exemplo: 20 questões = 20 linhas
+      omr_cols          -> número de colunas (= número de alternativas)
+                           Padrão: 5 (A, B, C, D, E). Use 4 para A-D.
+      omr_header_fields -> JSON com campos extras do cabeçalho da folha
+                           Exemplo: '["nome", "turma", "data"]'
+                           O gerador de PDF usa este campo para renderizar
+                           o cabeçalho personalizado de cada escola.
+      barcode_enabled   -> se True, imprime QR-code ou código de barras
+                           na folha para identificação automática na leitura
+
+    Relacionamentos:
+      class_assignments   -> turmas alocadas
+      discipline_quotas   -> cotas por disciplina
+      teacher_assignments -> atribuições de professores
+      questions           -> questões inseridas
+      selection           -> seleção final com ordem e gabarito
+      teacher_progress    -> progresso consolidado por professor
+      progress_log        -> histórico de eventos (append-only)
     """
     __tablename__ = "exams"
 
@@ -179,16 +201,40 @@ class Exam(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # -------------------------------------------------------------------------
+    # Campos OMR — adicionados no Passo 6
+    # -------------------------------------------------------------------------
+
+    # Linhas da grade = número máximo de questões na folha (padrão: 10)
+    omr_rows: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="10"
+    )
+
+    # Colunas da grade = número de alternativas (padrão: 5 → A,B,C,D,E)
+    omr_cols: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="5"
+    )
+
+    # Campos do cabeçalho em JSON. Ex.: '["nome", "turma", "numero"]'
+    # Se None, o gerador de PDF usa o cabeçalho padrão da escola.
+    omr_header_fields: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+
+    # Se True, a folha terá QR-code/barcode para identificação automática
+    barcode_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    # -------------------------------------------------------------------------
     created_by = relationship(User)
 
-    # Relacionamentos existentes
     class_assignments   = relationship("ExamClassAssignment",   back_populates="exam", cascade="all, delete-orphan")
     discipline_quotas   = relationship("ExamDisciplineQuota",   back_populates="exam", cascade="all, delete-orphan")
     teacher_assignments = relationship("ExamTeacherAssignment", back_populates="exam", cascade="all, delete-orphan")
     questions           = relationship("Question",              back_populates="exam", cascade="all, delete-orphan")
     selection           = relationship("ExamQuestionLink",      back_populates="exam", cascade="all, delete-orphan")
 
-    # Relacionamentos novos (Passo 5)
     teacher_progress = relationship(
         "ExamTeacherProgress",
         back_populates="exam",
@@ -211,7 +257,7 @@ class ExamClassAssignment(Base):
     __tablename__ = "exam_class_assignment"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    exam_id:  Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),         index=True)
+    exam_id:  Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),          index=True)
     class_id: Mapped[int] = mapped_column(Integer, ForeignKey("school_classes.id"), index=True)
 
     __table_args__ = (
@@ -227,12 +273,12 @@ class ExamClassAssignment(Base):
 # =============================================================================
 
 class ExamDisciplineQuota(Base):
-    """Quantidade de questoes exigida por disciplina em um simulado."""
+    """Quantidade de questões exigida por disciplina em um simulado."""
     __tablename__ = "exam_discipline_quota"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    exam_id:       Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),      index=True)
-    discipline_id: Mapped[int] = mapped_column(Integer, ForeignKey(FK_DISCIPLINE),   index=True)
+    exam_id:       Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),    index=True)
+    discipline_id: Mapped[int] = mapped_column(Integer, ForeignKey(FK_DISCIPLINE), index=True)
     quota:         Mapped[int] = mapped_column(Integer, nullable=False)
 
     __table_args__ = (
@@ -252,11 +298,11 @@ class ExamDisciplineQuota(Base):
 # =============================================================================
 
 class ExamTeacherAssignment(Base):
-    """Atribuicao de um professor a um recorte (exam + turma + disciplina)."""
+    """Atribuição de um professor a um recorte (exam + turma + disciplina)."""
     __tablename__ = "exam_teacher_assignment"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    exam_id:         Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),         index=True)
+    exam_id:         Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),          index=True)
     class_id:        Mapped[int] = mapped_column(Integer, ForeignKey("school_classes.id"), index=True)
     discipline_id:   Mapped[int] = mapped_column(Integer, ForeignKey(FK_DISCIPLINE),       index=True)
     teacher_user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"),          index=True)
@@ -315,12 +361,12 @@ class TeacherClassSubject(Base):
 # =============================================================================
 
 class Question(Base):
-    """Questao inserida por um professor para um recorte do simulado."""
+    """Questão inserida por um professor para um recorte do simulado."""
     __tablename__ = "questions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    exam_id:        Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),         index=True)
-    discipline_id:  Mapped[int] = mapped_column(Integer, ForeignKey(FK_DISCIPLINE),      index=True)
+    exam_id:        Mapped[int] = mapped_column(Integer, ForeignKey("exams.id"),          index=True)
+    discipline_id:  Mapped[int] = mapped_column(Integer, ForeignKey(FK_DISCIPLINE),       index=True)
     class_id:       Mapped[int] = mapped_column(Integer, ForeignKey("school_classes.id"), index=True)
     author_user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"),          index=True)
 
@@ -350,12 +396,12 @@ class Question(Base):
 # =============================================================================
 
 class QuestionOption(Base):
-    """Alternativa de uma questao (A, B, C, D ou E)."""
+    """Alternativa de uma questão (A, B, C, D ou E)."""
     __tablename__ = "question_options"
 
     id:          Mapped[int] = mapped_column(Integer, primary_key=True)
     question_id: Mapped[int] = mapped_column(Integer, ForeignKey("questions.id"), index=True)
-    label:       Mapped[str] = mapped_column(String(1), nullable=False)  # 'A'...'E'
+    label:       Mapped[str] = mapped_column(String(1), nullable=False)
     text:        Mapped[str] = mapped_column(Text, nullable=False)
 
     __table_args__ = (
@@ -370,10 +416,7 @@ class QuestionOption(Base):
 # =============================================================================
 
 class ExamQuestionLink(Base):
-    """
-    Selecao final de questoes do simulado.
-    Cada linha vincula uma questao ao simulado com sua ordem e gabarito.
-    """
+    """Seleção final de questões do simulado com ordem e gabarito."""
     __tablename__ = "exam_question_link"
 
     id:            Mapped[int]           = mapped_column(Integer, primary_key=True)
@@ -393,7 +436,7 @@ class ExamQuestionLink(Base):
 
 
 # =============================================================================
-# MODEL: ExamTeacherProgress  [NOVO — Passo 5]
+# MODEL: ExamTeacherProgress  [Passo 5 — corrigido no Passo 6]
 # =============================================================================
 
 class ExamTeacherProgress(Base):
@@ -402,39 +445,29 @@ class ExamTeacherProgress(Base):
 
     Um recorte = (simulado, professor, disciplina, turma).
 
-    Exemplo:
-        Professor Joao | Matematica | 3aA | Simulado 5
-        quota=10 | submitted=7 | status=PARTIAL
+    IMPORTANTE sobre a coluna `status`:
+        Armazenada como VARCHAR(20) no banco (não como ENUM PostgreSQL).
+        Valores válidos definidos pelo Python Enum ProgressStatus:
+            "PENDING" | "PARTIAL" | "COMPLETE"
+        A validação ocorre na camada Python, não no banco.
 
-    Este registro e atualizado (UPDATE) toda vez que uma questao
-    e inserida ou removida por este professor neste recorte.
-
-    O painel do coordenador consulta esta tabela para exibir o
-    progresso em tempo real de todos os professores do simulado.
-
-    Relacionado ao log de eventos (ExamProgressLog), que registra
-    cada alteracao individualmente para fins de auditoria.
+    Atualizado (UPDATE) toda vez que uma questão é inserida ou removida.
     """
     __tablename__ = "exam_teacher_progress"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # Contexto do recorte
     exam_id:         Mapped[int] = mapped_column(Integer, ForeignKey("exams.id",         ondelete="CASCADE"), index=True, nullable=False)
     teacher_user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id",         ondelete="CASCADE"), index=True, nullable=False)
     discipline_id:   Mapped[int] = mapped_column(Integer, ForeignKey(FK_DISCIPLINE,       ondelete="CASCADE"), index=True, nullable=False)
     class_id:        Mapped[int] = mapped_column(Integer, ForeignKey("school_classes.id", ondelete="CASCADE"), index=True, nullable=False)
 
-    # Contadores
     quota:     Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     submitted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # Status calculado pela aplicacao
-    status: Mapped[ProgressStatus] = mapped_column(
-        SAEnum(ProgressStatus), nullable=False, default=ProgressStatus.PENDING
-    )
+    # VARCHAR — alinhado com migration a1b2c3d4e5f6
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="PENDING")
 
-    # Timestamp de ultima atualizacao
     last_updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
     )
@@ -446,20 +479,19 @@ class ExamTeacherProgress(Base):
         ),
     )
 
-    # Relacionamentos
-    exam    = relationship(Exam, back_populates="teacher_progress")
-    teacher = relationship(User)
-    discipline = relationship(
+    exam         = relationship(Exam, back_populates="teacher_progress")
+    teacher      = relationship(User)
+    school_class = relationship(SchoolClass)
+    discipline   = relationship(
         Discipline,
         primaryjoin=lambda: ExamTeacherProgress.discipline_id == _disc_pk_attr(),
         foreign_keys=lambda: [ExamTeacherProgress.discipline_id],
     )
-    school_class = relationship(SchoolClass)
 
     def recalculate_status(self) -> None:
         """
-        Recalcula e atualiza o status com base nos contadores atuais.
-        Deve ser chamado sempre que submitted ou quota for alterado.
+        Recalcula status com base nos contadores.
+        Chame sempre que submitted ou quota for alterado.
 
         Uso:
             progress.submitted += 1
@@ -468,53 +500,40 @@ class ExamTeacherProgress(Base):
             db.commit()
         """
         if self.submitted <= 0:
-            self.status = ProgressStatus.PENDING
+            self.status = ProgressStatus.PENDING.value
         elif self.submitted < self.quota:
-            self.status = ProgressStatus.PARTIAL
+            self.status = ProgressStatus.PARTIAL.value
         else:
-            self.status = ProgressStatus.COMPLETE
-
+            self.status = ProgressStatus.COMPLETE.value
         self.last_updated_at = datetime.utcnow()
 
     def __repr__(self):
         return (
-            f"<ExamTeacherProgress("
-            f"exam={self.exam_id}, "
+            f"<ExamTeacherProgress(exam={self.exam_id}, "
             f"teacher={self.teacher_user_id}, "
-            f"disc={self.discipline_id}, "
-            f"class={self.class_id}, "
             f"{self.submitted}/{self.quota} {self.status})>"
         )
 
 
 # =============================================================================
-# MODEL: ExamProgressLog  [NOVO — Passo 5]
+# MODEL: ExamProgressLog  [Passo 5 — corrigido no Passo 6]
 # =============================================================================
 
 class ExamProgressLog(Base):
     """
-    Historico IMUTAVEL de eventos de progresso do simulado.
+    Histórico IMUTÁVEL de eventos de progresso. APPEND-ONLY.
 
-    Cada linha representa um evento discreto no tempo:
-      - questao inserida
-      - questao removida
-      - quota alterada
-      - status mudou
+    IMPORTANTE sobre a coluna `event_type`:
+        Armazenada como VARCHAR(30) no banco (não como ENUM PostgreSQL).
+        Valores válidos definidos pelo Python Enum ProgressLogEvent.
 
-    REGRA IMPORTANTE: esta tabela e APPEND-ONLY.
-    Nenhuma linha deve ser atualizada ou deletada apos a insercao.
-    O historico completo e a fonte de verdade para:
-      - Auditoria do processo de construcao do simulado
-      - Rastreabilidade metodologica no artigo cientifico
-      - Relatorios de desempenho dos professores
-
-    Uso tipico:
+    Uso:
         log = ExamProgressLog(
             exam_id=exam.id,
             teacher_user_id=professor.id,
             discipline_id=disc.id,
             class_id=turma.id,
-            event_type=ProgressLogEvent.QUESTION_ADDED,
+            event_type=ProgressLogEvent.QUESTION_ADDED.value,
             question_id=questao.id,
             submitted_snap=progresso.submitted,
         )
@@ -525,42 +544,33 @@ class ExamProgressLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # Contexto do evento (nullable para preservar historico apos exclusoes)
     exam_id:         Mapped[int]           = mapped_column(Integer, ForeignKey("exams.id",         ondelete="CASCADE"),  nullable=False, index=True)
     teacher_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id",         ondelete="SET NULL"), nullable=True,  index=True)
     discipline_id:   Mapped[Optional[int]] = mapped_column(Integer, ForeignKey(FK_DISCIPLINE,       ondelete="SET NULL"), nullable=True,  index=True)
     class_id:        Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("school_classes.id", ondelete="SET NULL"), nullable=True,  index=True)
 
-    # Tipo do evento
-    event_type: Mapped[ProgressLogEvent] = mapped_column(SAEnum(ProgressLogEvent), nullable=False)
+    # VARCHAR — alinhado com migration a1b2c3d4e5f6
+    event_type: Mapped[str] = mapped_column(String(30), nullable=False)
 
-    # Questao envolvida (apenas em QUESTION_ADDED / QUESTION_REMOVED)
     question_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("questions.id", ondelete="SET NULL"), nullable=True
     )
 
-    # Snapshots numericos
     quota_before:   Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     quota_after:    Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     submitted_snap: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    note:           Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Anotacao livre
-    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    # Timestamp imutavel
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True
     )
 
-    # Relacionamentos (read-only — nunca modificar via cascade)
     exam     = relationship(Exam, back_populates="progress_log")
     teacher  = relationship(User,     foreign_keys=[teacher_user_id])
     question = relationship(Question, foreign_keys=[question_id])
 
     def __repr__(self):
         return (
-            f"<ExamProgressLog("
-            f"exam={self.exam_id}, "
-            f"event={self.event_type}, "
-            f"at={self.occurred_at})>"
+            f"<ExamProgressLog(exam={self.exam_id}, "
+            f"event={self.event_type}, at={self.occurred_at})>"
         )
