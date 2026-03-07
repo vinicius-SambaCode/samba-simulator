@@ -185,6 +185,11 @@ app.mount(
     name="swagger",
 )
 
+app.mount(
+    "/media", 
+    StaticFiles(directory="/app/storage"), 
+    name="media",
+)
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
