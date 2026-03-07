@@ -112,7 +112,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 
 # Detecta início de questão numerada: "1." "1)" "Questão 1" "QUESTÃO 1"
 _RE_QUESTION_START = re.compile(
-    r'^(?:quest[aã]o\s+)?(\d+)[.)]\s+(.+)$',
+    r'^(?:quest[aã]o\s+)?(\d+)[.)]\s*(.+)$',
     re.IGNORECASE,
 )
 
