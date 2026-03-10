@@ -24,6 +24,7 @@
 # =============================================================================
 
 from __future__ import annotations
+import os as _os
 
 import importlib
 import os
@@ -187,11 +188,13 @@ app.mount(
     name="swagger",
 )
 
-app.mount(
-    "/media", 
-    StaticFiles(directory="/app/storage"), 
-    name="media",
-)
+_storage_dir = _os.environ.get("STORAGE_DIR", "/app/storage")
+if _os.path.isdir(_storage_dir):
+    app.mount(
+        "/media",
+        StaticFiles(directory=_storage_dir),
+        name="media",
+    )
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
