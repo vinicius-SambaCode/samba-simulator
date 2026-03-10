@@ -128,8 +128,15 @@ def _cleanup_latex_temps():
 # =============================================================================
 def _coerce_storage_dir(raw):
     base = Path(raw or "/app/storage")
-    if not base.is_absolute(): base = Path("/app") / base
-    base.mkdir(parents=True, exist_ok=True)
+    if not base.is_absolute():
+        base = Path("/app") / base
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        # CI/test: sem permissão em /app — usa diretório temporário
+        import tempfile
+        base = Path(tempfile.gettempdir()) / "samba_storage"
+        base.mkdir(parents=True, exist_ok=True)
     return base
 
 _STORAGE_ROOT = _coerce_storage_dir(getattr(settings, "STORAGE_DIR", None))
