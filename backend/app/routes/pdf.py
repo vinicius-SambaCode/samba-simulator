@@ -34,10 +34,11 @@ from app.models.school import SchoolClass, Student
 from app.services.pdf_generator import (
     generate_exam_pdfs_for_class,
     generate_exam_pdfs_for_student,
+    generate_batch_for_class,
     _exam_storage_dir,  # mantido para geração (compat)
 )
 
-router = APIRouter(prefix="/pdf", tags=["pdf"])
+router = APIRouter(tags=["pdf"])
 
 
 # -------------------------------------------------------------------
@@ -161,4 +162,56 @@ def download_pdf(
         path=file_path,
         filename=filename,
         media_type="application/pdf",
+    )
+
+
+# -------------------------------------------------------------------
+# GET /exams/{exam_id}/pdf/batch?class_id=X&type=booklets|omr|individual
+# -------------------------------------------------------------------
+@router.get("/exams/{exam_id}/pdf/batch")
+def download_batch(
+    exam_id: int,
+    class_id: int,
+    type: Literal["booklets", "omr", "individual"] = "booklets",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Baixa PDFs em lote para uma turma:
+    - booklets   → PDF único com todos os cadernos (ex: 3a_cadernos.pdf)
+    - omr        → PDF único com todas as folhas OMR (ex: 3a_omr.pdf)
+    - individual → ZIP com um PDF por aluno nomeado pelo RA
+    Reutiliza PDFs já gerados — só regenera se necessário.
+    """
+    exam = _get_exam_or_404(db, exam_id)
+    if exam.status != ExamStatus.LOCKED:
+        raise HTTPException(status_code=400, detail="Exame precisa estar LOCKED.")
+
+    cls = db.get(SchoolClass, class_id)
+    if not cls:
+        raise HTTPException(status_code=400, detail="Turma inválida (class_id).")
+
+    try:
+        output_path = generate_batch_for_class(db, exam, class_id, batch_type=type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not os.path.exists(output_path):
+        raise HTTPException(status_code=500, detail="Erro ao gerar arquivo de lote.")
+
+    class_name = (cls.name or str(class_id)).replace(" ", "").replace("/", "-")
+    if type == "booklets":
+        filename   = f"{class_name}_cadernos.pdf"
+        media_type = "application/pdf"
+    elif type == "omr":
+        filename   = f"{class_name}_omr.pdf"
+        media_type = "application/pdf"
+    else:
+        filename   = f"{class_name}_individual.zip"
+        media_type = "application/zip"
+
+    return FileResponse(
+        path=output_path,
+        filename=filename,
+        media_type=media_type,
     )

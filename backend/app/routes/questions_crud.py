@@ -263,21 +263,17 @@ async def upload_questions(
     if not parsed:
         raise HTTPException(422, "Nenhuma questão encontrada no arquivo.")
 
-    # Extrai imagens do docx (todas de uma vez)
-    all_images = []
+    # Extrai imagens do docx agrupadas por questão (por posição no XML)
+    images_by_q: dict = {}
     if ext == ".docx":
         try:
-            from app.services.docx_image_extractor import extract_images_from_docx as _extract_imgs
-            all_images = _extract_imgs(file_bytes)
+            from app.services.docx_image_extractor import extract_images_by_question as _extract_imgs
+            images_by_q = _extract_imgs(file_bytes)
         except Exception:
             pass
 
     created_ids, skipped, total_images = [], 0, 0
-    n_valid = sum(
-        1 for item in parsed
-        if len({o["label"].strip().upper() for o in item["options"]}) ==
-           (4 if exam.options_count == 4 else 5)
-    )
+    q_idx = 0  # índice da questão válida (0-based, alinhado com images_by_q)
 
     for idx, item in enumerate(parsed):
         opts = [{"label": o["label"].strip().upper(), "text": o["text"].strip()}
@@ -286,14 +282,17 @@ async def upload_questions(
             _validate_options(exam, {o["label"] for o in opts})
         except HTTPException:
             skipped += 1
+            q_idx += 1
             continue
+
+        q_imgs_for_this = images_by_q.get(q_idx, [])
 
         q = Question(
             exam_id=exam.id, discipline_id=discipline_id,
             class_id=class_id, author_user_id=current_user.id,
             source={"docx": "docx", ".pdf": "pdf"}.get(ext, "txt"),
             state="submitted", stem=item["stem"],
-            has_images=bool(all_images),
+            has_images=bool(q_imgs_for_this),
         )
         db.add(q); db.flush()
 
@@ -306,37 +305,29 @@ async def upload_questions(
             if correct in {o["label"] for o in opts}:
                 _upsert_link(db, exam, q.id, correct)
 
-        # Distribui imagens proporcionalmente entre as questões
-        if all_images and ext == ".docx" and n_valid > 0:
+        # Salva imagens vinculadas a esta questão específica
+        if q_imgs_for_this:
             try:
                 from app.services.docx_image_extractor import save_images_to_disk
                 from app.models.exam import QuestionImage  # type: ignore
-
-                qi = len(created_ids)
-                imgs_per_q = len(all_images) // n_valid
-                remainder  = len(all_images) % n_valid
-                start = qi * imgs_per_q + min(qi, remainder)
-                end   = start + imgs_per_q + (1 if qi < remainder else 0)
-                q_imgs = all_images[start:end]
-
-                if q_imgs:
-                    saved = save_images_to_disk(q.id, q_imgs)
-                    for s in saved:
-                        db.add(QuestionImage(
-                            question_id=q.id,
-                            storage_path=s["storage_path"],
-                            mime_type=s["mime_type"],
-                            context=s["context"],
-                            order_idx=s["order_idx"],
-                            width_px=s["width_px"],
-                            height_px=s["height_px"],
-                        ))
-                    total_images += len(saved)
+                saved = save_images_to_disk(q.id, q_imgs_for_this)
+                for s in saved:
+                    db.add(QuestionImage(
+                        question_id=q.id,
+                        storage_path=s["storage_path"],
+                        mime_type=s["mime_type"],
+                        context=s["context"],
+                        order_idx=s["order_idx"],
+                        width_px=s["width_px"],
+                        height_px=s["height_px"],
+                    ))
+                total_images += len(saved)
             except Exception:
                 pass
 
         record_question_added(db, exam, q)
         created_ids.append(q.id)
+        q_idx += 1
 
     db.commit()
     return {

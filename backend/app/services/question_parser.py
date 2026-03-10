@@ -75,18 +75,39 @@ def extract_text_from_txt(file_bytes: bytes) -> str:
 
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
-    """Extrai texto de .docx preservando quebras de parágrafo."""
+    """
+    Extrai texto de .docx preservando quebras de parágrafo.
+    Equações OMML (editor de equações do Word) são convertidas para LaTeX inline ($...$).
+    """
     try:
         from docx import Document
     except ImportError:
         raise RuntimeError("python-docx não instalado. Adicione ao requirements.txt.")
 
+    try:
+        from app.services.omml_to_latex import paragraph_text_with_math
+        _has_omml = True
+    except ImportError:
+        _has_omml = False
+
     doc = Document(io.BytesIO(file_bytes))
     paragraphs = []
     for para in doc.paragraphs:
-        text = para.text.strip()
-        if text:
-            paragraphs.append(text)
+        if _has_omml:
+            text = paragraph_text_with_math(para).strip()
+        else:
+            text = para.text.strip()
+        if not text:
+            continue
+        # Se a linha é só equação LaTeX e há stem anterior, cola ao stem
+        _is_math_only = text.startswith("$") and text.endswith("$")
+        _is_option    = bool(re.match(r'^[a-eA-E]\)', text))
+        if _is_math_only and paragraphs and not _is_option:
+            last = paragraphs[-1]
+            if not re.match(r'^[a-eA-E]\)', last):
+                paragraphs[-1] = last + " " + text
+                continue
+        paragraphs.append(text)
     return "\n".join(paragraphs)
 
 
@@ -112,7 +133,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 
 # Detecta início de questão numerada: "1." "1)" "Questão 1" "QUESTÃO 1"
 _RE_QUESTION_START = re.compile(
-    r'^(?:quest[aã]o\s+)?(\d+)[.)]\s*(.+)$',
+    r'^(?:quest[aã]o\s+)?(\d+)[.)]\s+(.+)$',
     re.IGNORECASE,
 )
 

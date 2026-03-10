@@ -56,12 +56,11 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app              # <-- Em dev, seu código local sobrescreve o que foi COPY no build
-      - storage:/app/storage
+      - .:/app                          # bind mount do código fonte
+      - ./app/storage:/app/storage      # bind mount do storage (logos, PDFs, etc.)
     restart: unless-stopped
     # Se quiser forçar a API a aguardar além do healthcheck (opcional), use:
     # command: ["/entrypoint.sh"]
 
 volumes:
   samba_pg_data:
-  storage:

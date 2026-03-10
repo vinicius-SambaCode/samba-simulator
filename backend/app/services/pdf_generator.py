@@ -1,35 +1,9 @@
 # =============================================================================
 # app/services/pdf_generator.py
 # =============================================================================
-#
-# RESPONSABILIDADE:
-#   Gera dois tipos de PDF para cada aluno de um simulado:
-#
-#   1. CADERNO DE QUESTÕES (booklet)
-#      - Formato A4, layout em espelho (frente/verso de caderno)
-#      - Margens ABNT: sup=3cm, interior=3cm, inf=2cm, exterior=2cm
-#      - Duas colunas por página
-#      - Fonte Times New Roman 12pt, espaçamento 1,5
-#      - Cabeçalho completo na primeira página
-#      - Rodapé com número de página centralizado em todas as páginas
-#      - Suporte a: texto, imagens inline, fórmulas LaTeX
-#
-#   2. FOLHA DE RESPOSTAS OMR (answer_sheet)
-#      - Grade de bolhas para marcação
-#      - Configurável via campos omr_rows e omr_cols do model Exam
-#      - Cabeçalho com campos para identificação do aluno
-#      - QR-code opcional (barcode_enabled)
-#
-# FÓRMULAS MATEMÁTICAS:
-#   Renderizadas via matplotlib + sympy como imagens PNG temporárias.
-#   O texto da questão pode conter marcadores LaTeX entre $...$:
-#     "Calcule $\\int_0^1 x^2 dx$"
-#   O gerador detecta, renderiza e insere como imagem inline.
-#
-# DEPENDÊNCIAS:
-#   reportlab, pillow, matplotlib, sympy, qrcode
-#
-# PASSO 7 — implementação inicial completa
+# Passo 7:  caderno 2 colunas + folha OMR
+# Passo 13: capa personalizada por aluno + página de rascunho a cada 3 páginas
+#           correção do contador "Questões" no cabeçalho
 # =============================================================================
 
 from __future__ import annotations
@@ -40,1014 +14,800 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-# ReportLab — geração de PDF
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import cm, mm
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import cm
 from reportlab.platypus import (
-    BaseDocTemplate,
-    Frame,
-    Image,
-    PageBreak,
-    PageTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-    KeepTogether,
+    BaseDocTemplate, Frame, Image, NextPageTemplate, PageBreak,
+    PageTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether,
 )
 from reportlab.platypus.flowables import HRFlowable
-
-# Fontes — Times New Roman via ReportLab (built-in como "Times-Roman")
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-
-# Pillow — manipulação de imagens
 from PIL import Image as PILImage
-
-# QR-code
 import qrcode
-
-# matplotlib + sympy — renderização LaTeX
 import matplotlib
-matplotlib.use("Agg")  # modo headless (sem janela gráfica)
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.mathtext  # renderização de fórmulas
 
 from app.core.settings import settings
 
 # =============================================================================
-# CONSTANTES DE LAYOUT ABNT
+# CONSTANTES
 # =============================================================================
-
-# Tamanho da página
-PAGE_W, PAGE_H = A4  # 595.27 x 841.89 pontos
-
-# Margens em centímetros → convertidas para pontos (1cm = 28.35pt)
-# Layout espelho para encadernação tipo caderno:
-#   Páginas ímpares (frente): margem esquerda = interior, direita = exterior
-#   Páginas pares  (verso):   margem esquerda = exterior, direita = interior
-MARGIN_TOP      = 3.0 * cm   # superior: 3cm
-MARGIN_BOTTOM   = 2.0 * cm   # inferior: 2cm
-MARGIN_INTERIOR = 3.0 * cm   # margem de encadernação: 3cm
-MARGIN_EXTERIOR = 2.0 * cm   # margem exterior: 2cm
-
-# Espaço entre as duas colunas
-COL_GAP = 0.5 * cm
-
-# Largura útil da página (descontando ambas as margens)
-USABLE_W = PAGE_W - MARGIN_INTERIOR - MARGIN_EXTERIOR
-
-# Largura de cada coluna
-COL_W = (USABLE_W - COL_GAP) / 2
-
-# Altura útil (descontando margens sup/inf e espaço do rodapé)
-FOOTER_H = 1.0 * cm
-USABLE_H = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM - FOOTER_H
-
-# Altura do cabeçalho da primeira página
-HEADER_H = 4.0 * cm
-
-# =============================================================================
-# ESTILOS TIPOGRÁFICOS (Times New Roman 12pt, espaçamento 1,5)
-# =============================================================================
-# "Times-Roman" é o nome interno do ReportLab para Times New Roman.
-# Espaçamento 1,5 linhas ≈ leading = tamanho * 1,5 = 12 * 1,5 = 18pt
-
+STORAGE_BASE    = "/app/storage"
+PAGE_W, PAGE_H  = A4
+MARGIN_TOP      = 3.0 * cm
+MARGIN_BOTTOM   = 2.0 * cm
+MARGIN_INTERIOR = 3.0 * cm
+MARGIN_EXTERIOR = 2.0 * cm
+COL_GAP         = 0.5 * cm
+USABLE_W        = PAGE_W - MARGIN_INTERIOR - MARGIN_EXTERIOR
+COL_W           = (USABLE_W - COL_GAP) / 2
+FOOTER_H        = 1.0 * cm
+USABLE_H        = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM - FOOTER_H
+HEADER_H        = 4.0 * cm
 _BASE_FONT      = "Times-Roman"
 _BASE_FONT_BOLD = "Times-Bold"
-_BASE_SIZE      = 12          # pt
-_BASE_LEADING   = 18          # pt  (espaçamento 1,5)
+_BASE_SIZE      = 12
+_BASE_LEADING   = 18
 
-def _make_styles() -> dict:
-    """
-    Cria e retorna o dicionário de estilos tipográficos do documento.
-    Todos derivam de Times-Roman 12pt com leading 18pt (espaçamento 1,5).
-    """
-    styles = {}
-
-    # Corpo do texto — justificado, Times 12, leading 18
-    styles["body"] = ParagraphStyle(
-        name="body",
-        fontName=_BASE_FONT,
-        fontSize=_BASE_SIZE,
-        leading=_BASE_LEADING,
-        alignment=TA_JUSTIFY,
-        spaceAfter=6,
-    )
-
-    # Enunciado da questão — igual ao corpo, mas com espaço extra acima
-    styles["stem"] = ParagraphStyle(
-        name="stem",
-        fontName=_BASE_FONT,
-        fontSize=_BASE_SIZE,
-        leading=_BASE_LEADING,
-        alignment=TA_JUSTIFY,
-        spaceBefore=4,
-        spaceAfter=4,
-    )
-
-    # Alternativas (A, B, C, D, E) — indentadas
-    styles["option"] = ParagraphStyle(
-        name="option",
-        fontName=_BASE_FONT,
-        fontSize=_BASE_SIZE,
-        leading=_BASE_LEADING,
-        alignment=TA_JUSTIFY,
-        leftIndent=12,
-        spaceAfter=2,
-    )
-
-    # Número da questão — negrito, pequeno recuo
-    styles["question_number"] = ParagraphStyle(
-        name="question_number",
-        fontName=_BASE_FONT_BOLD,
-        fontSize=_BASE_SIZE,
-        leading=_BASE_LEADING,
-        spaceBefore=8,
-        spaceAfter=2,
-    )
-
-    # Título do cabeçalho — centralizado, negrito, 14pt
-    styles["header_title"] = ParagraphStyle(
-        name="header_title",
-        fontName=_BASE_FONT_BOLD,
-        fontSize=14,
-        leading=21,
-        alignment=TA_CENTER,
-        spaceAfter=4,
-    )
-
-    # Subtítulo do cabeçalho — centralizado, 12pt
-    styles["header_sub"] = ParagraphStyle(
-        name="header_sub",
-        fontName=_BASE_FONT,
-        fontSize=_BASE_SIZE,
-        leading=_BASE_LEADING,
-        alignment=TA_CENTER,
-        spaceAfter=2,
-    )
-
-    # Rodapé — centralizado, 10pt
-    styles["footer"] = ParagraphStyle(
-        name="footer",
-        fontName=_BASE_FONT,
-        fontSize=10,
-        leading=12,
-        alignment=TA_CENTER,
-    )
-
-    # Instrução geral — itálico simulado (Times-Italic)
-    styles["instruction"] = ParagraphStyle(
-        name="instruction",
-        fontName="Times-Italic",
-        fontSize=_BASE_SIZE,
-        leading=_BASE_LEADING,
-        alignment=TA_JUSTIFY,
-        spaceAfter=6,
-    )
-
-    return styles
-
+# =============================================================================
+# ESTILOS
+# =============================================================================
+def _make_styles():
+    s = {}
+    s["body"] = ParagraphStyle("body", fontName=_BASE_FONT, fontSize=_BASE_SIZE, leading=_BASE_LEADING, alignment=TA_JUSTIFY, spaceAfter=6)
+    s["stem"] = ParagraphStyle("stem", fontName=_BASE_FONT, fontSize=_BASE_SIZE, leading=_BASE_LEADING, alignment=TA_JUSTIFY, spaceBefore=4, spaceAfter=4)
+    s["option"] = ParagraphStyle("option", fontName=_BASE_FONT, fontSize=_BASE_SIZE, leading=_BASE_LEADING, alignment=TA_JUSTIFY, leftIndent=12, spaceAfter=2)
+    s["question_number"] = ParagraphStyle("question_number", fontName=_BASE_FONT_BOLD, fontSize=_BASE_SIZE, leading=_BASE_LEADING, spaceBefore=8, spaceAfter=2)
+    s["header_title"] = ParagraphStyle("header_title", fontName=_BASE_FONT_BOLD, fontSize=14, leading=21, alignment=TA_CENTER, spaceAfter=4)
+    s["footer"] = ParagraphStyle("footer", fontName=_BASE_FONT, fontSize=10, leading=12, alignment=TA_CENTER)
+    s["instruction"] = ParagraphStyle("instruction", fontName="Times-Italic", fontSize=_BASE_SIZE, leading=_BASE_LEADING, alignment=TA_JUSTIFY, spaceAfter=6)
+    return s
 
 STYLES = _make_styles()
 
-
 # =============================================================================
-# RENDERIZAÇÃO DE FÓRMULAS LATEX
+# LATEX
 # =============================================================================
-
-def _render_latex_to_image(latex_expr: str, fontsize: int = 12) -> Optional[str]:
-    """
-    Renderiza uma expressão LaTeX como imagem PNG usando matplotlib.
-
-    Parâmetros:
-        latex_expr: string LaTeX sem delimitadores (ex.: r"\\int_0^1 x^2 dx")
-        fontsize:   tamanho da fonte em pontos (padrão: 12)
-
-    Retorna:
-        Caminho do arquivo PNG temporário, ou None em caso de erro.
-
-    O arquivo temporário deve ser deletado pelo chamador após uso.
-
-    Exemplo:
-        path = _render_latex_to_image(r"\\frac{a}{b} + \\sqrt{c}")
-        if path:
-            img = Image(path, width=4*cm, height=1*cm)
-            # ... usar no flowable ...
-            os.unlink(path)
-    """
+def _render_latex_to_image(expr, fontsize=12):
     try:
-        # Cria figura mínima — o tamanho será ajustado ao conteúdo
         fig, ax = plt.subplots(figsize=(0.01, 0.01))
         ax.axis("off")
-
-        # Renderiza a fórmula centralizada
-        text = ax.text(
-            0.5, 0.5,
-            f"${latex_expr}$",
-            fontsize=fontsize,
-            ha="center", va="center",
-            transform=fig.transFigure,
-            family="serif",
-        )
-
-        # Ajusta o tamanho da figura ao conteúdo renderizado
+        t = ax.text(0.5, 0.5, f"${expr}$", fontsize=fontsize, ha="center", va="center", transform=fig.transFigure, family="serif")
         fig.canvas.draw()
-        bbox = text.get_window_extent(renderer=fig.canvas.get_renderer())
-        # Converte pixels → polegadas (DPI padrão: 100)
+        bbox = t.get_window_extent(renderer=fig.canvas.get_renderer())
         dpi = 150
-        fig.set_size_inches(
-            max(bbox.width / dpi + 0.1, 0.5),
-            max(bbox.height / dpi + 0.1, 0.3),
-        )
+        fig.set_size_inches(max(bbox.width/dpi+0.1, 0.5), max(bbox.height/dpi+0.1, 0.3))
         fig.canvas.draw()
-
-        # Salva em arquivo temporário
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-        fig.savefig(tmp.name, dpi=dpi, bbox_inches="tight",
-                    transparent=True, pad_inches=0.02)
+        fig.savefig(tmp.name, dpi=dpi, bbox_inches="tight", transparent=True, pad_inches=0.02)
         plt.close(fig)
         return tmp.name
-
-    except Exception as exc:
-        # Falha silenciosa — o chamador usará texto puro como fallback
-        print(f"[pdf_generator] Falha ao renderizar LaTeX '{latex_expr}': {exc}")
-        try:
-            plt.close("all")
-        except Exception:
-            pass
+    except Exception as e:
+        try: plt.close("all")
+        except: pass
         return None
 
-
-def _parse_text_with_latex(text: str, style: ParagraphStyle) -> List:
-    """
-    Analisa um texto que pode conter fórmulas LaTeX entre $ ... $.
-
-    Retorna uma lista de flowables misturados:
-      - Paragraph para trechos de texto puro
-      - Image para fórmulas renderizadas
-
-    Exemplo de entrada:
-        "A área é $\\frac{base \\times altura}{2}$ cm²."
-
-    Saída:
-        [Paragraph("A área é "), Image("/tmp/xxx.png"), Paragraph(" cm².")]
-
-    Se não houver LaTeX, retorna [Paragraph(text, style)].
-    """
-    # Detecta padrão $...$  (não captura $$...$$  por ora)
+def _parse_text_with_latex(text, style):
     parts = re.split(r'(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)', text, flags=re.DOTALL)
-
     if len(parts) == 1:
-        # Sem LaTeX — retorna parágrafo simples
         return [Paragraph(text, style)]
-
     flowables = []
-    tmp_files = []  # rastreia temporários para limpeza posterior
-
+    tmp_files = []
     for i, part in enumerate(parts):
-        if not part:
-            continue
+        if not part: continue
         if i % 2 == 0:
-            # Texto puro
-            if part.strip():
-                flowables.append(Paragraph(part, style))
+            if part.strip(): flowables.append(Paragraph(part, style))
         else:
-            # Fórmula LaTeX
-            tmp_path = _render_latex_to_image(part, fontsize=_BASE_SIZE)
-            if tmp_path:
-                tmp_files.append(tmp_path)
+            p = _render_latex_to_image(part, fontsize=_BASE_SIZE)
+            if p:
+                tmp_files.append(p)
                 try:
-                    # Determina tamanho proporcional
-                    with PILImage.open(tmp_path) as pil_img:
-                        pw, ph = pil_img.size
-                    # Limita largura a 80% da coluna
+                    with PILImage.open(p) as img: pw, ph = img.size
                     max_w = COL_W * 0.8
-                    ratio = max_w / pw
-                    img_w = max_w
-                    img_h = ph * ratio
-                    flowables.append(Image(tmp_path, width=img_w, height=img_h))
-                except Exception:
-                    # Fallback: insere o LaTeX como texto puro
-                    flowables.append(Paragraph(f"[{part}]", style))
-            else:
-                # Fallback se renderização falhou
-                flowables.append(Paragraph(f"[{part}]", style))
-
-    # Nota: os arquivos temporários serão deletados ao final da geração
-    # pelo contexto que chama esta função. Guardamos os caminhos no
-    # atributo _tmp_latex_files da função para que _build_booklet() possa limpar.
-    if not hasattr(_parse_text_with_latex, "_tmp_files"):
-        _parse_text_with_latex._tmp_files = []
+                    flowables.append(Image(p, width=max_w, height=ph*(max_w/pw)))
+                except: flowables.append(Paragraph(f"[{part}]", style))
+            else: flowables.append(Paragraph(f"[{part}]", style))
+    if not hasattr(_parse_text_with_latex, "_tmp_files"): _parse_text_with_latex._tmp_files = []
     _parse_text_with_latex._tmp_files.extend(tmp_files)
-
     return flowables
 
-
-def _cleanup_latex_temps() -> None:
-    """Remove todos os arquivos temporários de fórmulas LaTeX gerados."""
-    tmp_list = getattr(_parse_text_with_latex, "_tmp_files", [])
-    for path in tmp_list:
+def _cleanup_latex_temps():
+    for p in getattr(_parse_text_with_latex, "_tmp_files", []):
         try:
-            if os.path.exists(path):
-                os.unlink(path)
-        except Exception:
-            pass
+            if os.path.exists(p): os.unlink(p)
+        except: pass
     _parse_text_with_latex._tmp_files = []
 
-
 # =============================================================================
-# DIRETÓRIOS DE STORAGE
+# STORAGE
 # =============================================================================
-
-def _coerce_storage_dir(raw: Optional[str]) -> Path:
-    """
-    Garante que STORAGE_DIR seja absoluto e existente.
-    Prioridade: settings.STORAGE_DIR → '/app/storage'
-    """
+def _coerce_storage_dir(raw):
     base = Path(raw or "/app/storage")
-    if not base.is_absolute():
-        base = Path("/app") / base
+    if not base.is_absolute(): base = Path("/app") / base
     base.mkdir(parents=True, exist_ok=True)
     return base
 
-
 _STORAGE_ROOT = _coerce_storage_dir(getattr(settings, "STORAGE_DIR", None))
 
-
-def exam_storage_dir(exam_id: int, create: bool = False) -> Path:
-    """
-    Retorna (e opcionalmente cria) o diretório de armazenamento do simulado.
-    Caminho: /app/storage/exams/{exam_id}/
-    """
+def exam_storage_dir(exam_id, create=False):
     path = _STORAGE_ROOT / "exams" / str(exam_id)
-    if create:
-        path.mkdir(parents=True, exist_ok=True)
+    if create: path.mkdir(parents=True, exist_ok=True)
     return path
 
-
-def _exam_storage_dir(exam_id: int) -> str:
-    """Compatibilidade com código legado — cria e retorna caminho (str)."""
+def _exam_storage_dir(exam_id):
     return str(exam_storage_dir(exam_id, create=True))
 
-
 # =============================================================================
-# CALLBACKS DE PÁGINA (cabeçalho e rodapé)
+# CAPA
 # =============================================================================
-
-def _draw_header_first_page(canvas, doc, exam, logo_path: Optional[str] = None):
-    """
-    Desenha o cabeçalho completo na PRIMEIRA página do caderno.
-
-    Conteúdo:
-      - Logo da escola (se fornecido) à esquerda
-      - Título do simulado centralizado
-      - Área do conhecimento, data e número do aluno
-      - Linha horizontal separadora
-
-    Parâmetros:
-        canvas:    objeto canvas do ReportLab
-        doc:       documento BaseDocTemplate
-        exam:      model Exam com os metadados
-        logo_path: caminho opcional para o logo da escola (PNG/JPG)
-    """
+def _draw_cover(canvas, exam, student_name, student_ra, student_class, n_questions, logo_path=None):
     canvas.saveState()
 
-    # Posição Y do topo do cabeçalho
-    top_y = PAGE_H - MARGIN_TOP
+    # --- Cabeçalho institucional ---
+    hdr_top = PAGE_H - 1.2 * cm
+    hdr_bot = PAGE_H - 4.0 * cm
+    canvas.setLineWidth(0.5)
+    canvas.line(MARGIN_INTERIOR, hdr_bot, PAGE_W - MARGIN_EXTERIOR, hdr_bot)
+    canvas.line(MARGIN_INTERIOR, hdr_top, PAGE_W - MARGIN_EXTERIOR, hdr_top)
 
-    # --- Logo (se fornecido) ---
-    if logo_path and os.path.exists(logo_path):
-        logo_w = 2.5 * cm
-        logo_h = 2.5 * cm
-        canvas.drawImage(
-            logo_path,
-            x=MARGIN_INTERIOR,
-            y=top_y - logo_h,
-            width=logo_w,
-            height=logo_h,
-            preserveAspectRatio=True,
-            mask="auto",
-        )
-        text_x = MARGIN_INTERIOR + logo_w + 0.3 * cm
+    # Logo SP (assets ou logo_path externo)
+    logo_x = MARGIN_INTERIOR
+    logo_y = hdr_bot + 0.2 * cm
+    logo_w = 2.0 * cm
+    logo_h = hdr_top - hdr_bot - 0.4 * cm
+    _sp_asset = os.path.join(STORAGE_BASE, "assets", "logo_sp.png")
+    _sp_path  = logo_path if (logo_path and os.path.exists(logo_path)) else (_sp_asset if os.path.exists(_sp_asset) else None)
+    if _sp_path:
+        canvas.drawImage(_sp_path, logo_x, logo_y, width=logo_w, height=logo_h,
+                         preserveAspectRatio=True, mask="auto")
     else:
-        text_x = MARGIN_INTERIOR
+        canvas.setFillColorRGB(0.75, 0.75, 0.75)
+        canvas.rect(logo_x, logo_y, logo_w, logo_h, fill=1, stroke=0)
+        canvas.setFillColorRGB(0, 0, 0)
+        canvas.setFont("Times-Bold", 7)
+        canvas.drawCentredString(logo_x + logo_w/2, logo_y + logo_h*0.55, "SÃO")
+        canvas.drawCentredString(logo_x + logo_w/2, logo_y + logo_h*0.35, "PAULO")
 
-    # --- Título do simulado ---
-    canvas.setFont(_BASE_FONT_BOLD, 14)
-    title = exam.title if exam.title else "SIMULADO"
-    canvas.drawString(text_x, top_y - 1.0 * cm, title)
+    tx = MARGIN_INTERIOR + logo_w + 0.3 * cm
+    canvas.setFillColorRGB(0, 0, 0)
+    canvas.setFont("Times-Bold", 7.5)
+    canvas.drawString(tx, hdr_bot + 2.3 * cm, "GOVERNO DO ESTADO DE SÃO PAULO – SECRETARIA DE ESTADO DA EDUCAÇÃO")
+    canvas.setFont(_BASE_FONT, 7.5)
+    canvas.drawString(tx, hdr_bot + 1.8 * cm, "UNIDADE REGIONAL DE ENSINO – REGIÃO BAURU – EE PROF. CHRISTINO CABRAL")
+    canvas.drawString(tx, hdr_bot + 1.3 * cm, "Rua Gerson França, 19-165 – Jardim Estoril II – CEP: 17016-000")
+    canvas.drawString(tx, hdr_bot + 0.8 * cm, "Telefones: (14) 3223-3855 (WhatsApp); (14) 3227-4664 – E-mail: e625598a@educacao.sp.gov.br")
 
-    # --- Área do conhecimento ---
-    canvas.setFont(_BASE_FONT, _BASE_SIZE)
-    area_text = exam.area if exam.area else ""
-    if area_text:
-        canvas.drawString(text_x, top_y - 1.8 * cm, f"Área: {area_text}")
+    # Logo Ensino Integral (assets ou placeholder)
+    bi_x = PAGE_W - MARGIN_EXTERIOR - 2.2 * cm
+    bi_y = hdr_bot + 0.2 * cm
+    bi_w = 2.0 * cm
+    bi_h = hdr_top - hdr_bot - 0.4 * cm
+    _int_asset = os.path.join(STORAGE_BASE, "assets", "logo_integral.png")
+    if os.path.exists(_int_asset):
+        canvas.drawImage(_int_asset, bi_x, bi_y, width=bi_w, height=bi_h,
+                         preserveAspectRatio=True, mask="auto")
+    else:
+        canvas.setFillColorRGB(0.0, 0.45, 0.7)
+        canvas.roundRect(bi_x, bi_y, bi_w, bi_h, 3, fill=1, stroke=0)
+        canvas.setFillColorRGB(1, 1, 1)
+        canvas.setFont("Times-Bold", 7)
+        canvas.drawCentredString(bi_x + bi_w/2, bi_y + bi_h*0.55, "ENSINO")
+        canvas.drawCentredString(bi_x + bi_w/2, bi_y + bi_h*0.35, "INTEGRAL")
 
-    # --- Data de aplicação ---
-    canvas.setFont(_BASE_FONT, _BASE_SIZE)
-    today = datetime.now().strftime("%d/%m/%Y")
-    canvas.drawRightString(
-        PAGE_W - MARGIN_EXTERIOR,
-        top_y - 1.0 * cm,
-        f"Data: {today}",
-    )
+    # --- Título ---
+    canvas.setFillColorRGB(0, 0, 0)
+    title_y = hdr_bot - 3.5 * cm
+    canvas.setFont("Times-Bold", 20)
+    canvas.drawCentredString(PAGE_W / 2, title_y, (exam.title or "SIMULADO").upper())
+    canvas.setLineWidth(1.5)
+    canvas.line(MARGIN_INTERIOR + 2*cm, title_y - 0.5*cm, PAGE_W - MARGIN_EXTERIOR - 2*cm, title_y - 0.5*cm)
 
-    # --- Número de questões ---
-    canvas.drawRightString(
-        PAGE_W - MARGIN_EXTERIOR,
-        top_y - 1.8 * cm,
-        f"Questões: {exam.options_count if hasattr(exam, 'options_count') else '—'}",
-    )
+    # --- Instruções ---
+    instructions = [
+        "Confira seus dados impressos neste caderno. Cuidado com a folha de respostas, a mesma não será reposta.",
+        "Assine com caneta de tinta preta a Folha de Respostas apenas no local indicado.",
+        f"Esta prova contém {n_questions} questões objetivas.",
+        "Quando for permitido abrir o caderno, verifique se está completo ou se apresenta imperfeições. Caso haja algum problema, informe ao professor.",
+        "Para cada questão, o candidato deverá assinalar apenas uma alternativa na Folha de Respostas, utilizando caneta de tinta azul ou preta.",
+        "Esta prova terá duração total de 2h e 30min e o candidato somente poderá sair se permitido pelo professor aplicador, após 50 min contados a partir do início da prova.",
+        "Ao final da prova, entregue ao professor a folha de Respostas obrigatoriamente e o Caderno de Questões se o professor solicitar.",
+    ]
 
-    # --- Linha separadora abaixo do cabeçalho ---
-    canvas.setLineWidth(0.8)
-    line_y = top_y - HEADER_H + 0.3 * cm
-    canvas.line(MARGIN_INTERIOR, line_y, PAGE_W - MARGIN_EXTERIOR, line_y)
+    iy = title_y - 1.0 * cm
+    lh = 13
+    max_w_pts = USABLE_W - 0.6 * cm
+
+    for instr in instructions:
+        canvas.setFont("Times-Bold", 9.5)
+        canvas.drawString(MARGIN_INTERIOR, iy, "►")
+        canvas.setFont(_BASE_FONT, 9.5)
+        words = instr.split()
+        lines, cur = [], ""
+        for w in words:
+            test = (cur + " " + w).strip()
+            if canvas.stringWidth(test, _BASE_FONT, 9.5) < max_w_pts:
+                cur = test
+            else:
+                lines.append(cur); cur = w
+        if cur: lines.append(cur)
+        for li, line in enumerate(lines):
+            canvas.drawString(MARGIN_INTERIOR + 0.5*cm, iy, line)
+            iy -= lh
+        iy -= 4
+
+    # --- Campos do aluno (caixas rounded) ---
+    box_h  = 0.7 * cm
+    box_r  = 4        # raio do arredondamento
+    pad_x  = 0.25 * cm
+    fill_c = (0.96, 0.96, 0.96)  # cinza bem claro
+
+    def _box(lbl, value, bx, by, bw):
+        """Desenha label + caixa rounded com valor preenchido."""
+        canvas.setFont("Times-Bold", 11)
+        canvas.setFillColorRGB(0, 0, 0)
+        canvas.drawString(bx, by + box_h * 0.28, lbl)
+        lbl_w = canvas.stringWidth(lbl, "Times-Bold", 11) + pad_x
+        # caixa
+        canvas.setFillColorRGB(*fill_c)
+        canvas.setStrokeColorRGB(0.4, 0.4, 0.4)
+        canvas.setLineWidth(0.5)
+        canvas.roundRect(bx + lbl_w, by, bw - lbl_w, box_h, box_r, fill=1, stroke=1)
+        # valor dentro da caixa
+        if value:
+            canvas.setFillColorRGB(0, 0, 0)
+            canvas.setFont(_BASE_FONT, 10.5)
+            canvas.drawString(bx + lbl_w + pad_x, by + box_h * 0.28, str(value))
+
+    fy = 8.5 * cm
+    full_w = PAGE_W - MARGIN_INTERIOR - MARGIN_EXTERIOR
+
+    # Linha 1: Nome (largura total)
+    _box("Nome:", student_name, MARGIN_INTERIOR, fy, full_w)
+
+    # Linha 2: RA / Série / Data
+    ry = fy - 1.1 * cm
+    ra_w    = full_w * 0.38
+    serie_w = full_w * 0.25
+    data_w  = full_w * 0.37
+    _box("R.A:",   student_ra,    MARGIN_INTERIOR,                      ry, ra_w)
+    _box("Série:", student_class, MARGIN_INTERIOR + ra_w + 0.2*cm,      ry, serie_w)
+    _box("Data:",  datetime.now().strftime("%d/%m/%Y"),
+                                  MARGIN_INTERIOR + ra_w + serie_w + 0.4*cm, ry, data_w)
+
+
+    # --- Rodapé da capa ---
+    canvas.setLineWidth(0.4)
+    canvas.line(MARGIN_INTERIOR, MARGIN_BOTTOM, PAGE_W - MARGIN_EXTERIOR, MARGIN_BOTTOM)
+    canvas.setFont("Times-Italic", 9)
+    canvas.drawString(MARGIN_INTERIOR, MARGIN_BOTTOM - 0.45*cm, "Confidencial até momento da aplicação.")
 
     canvas.restoreState()
 
+# =============================================================================
+# CALLBACKS DE PÁGINA
+# =============================================================================
+def _draw_questions_header(canvas, doc, exam, n_questions):
+    canvas.saveState()
+    ty = PAGE_H - MARGIN_TOP
+    canvas.setFont(_BASE_FONT_BOLD, 11)
+    canvas.drawString(MARGIN_INTERIOR, ty - 0.7*cm, exam.title or "SIMULADO")
+    canvas.setFont(_BASE_FONT, 10)
+    if exam.area:
+        canvas.drawString(MARGIN_INTERIOR, ty - 1.3*cm, f"Área: {exam.area}")
+    canvas.drawRightString(PAGE_W - MARGIN_EXTERIOR, ty - 0.7*cm, f"Data: {datetime.now().strftime('%d/%m/%Y')}")
+    canvas.drawRightString(PAGE_W - MARGIN_EXTERIOR, ty - 1.3*cm, f"Questões: {n_questions}")
+    canvas.setLineWidth(0.6)
+    canvas.line(MARGIN_INTERIOR, ty - HEADER_H + 0.3*cm, PAGE_W - MARGIN_EXTERIOR, ty - HEADER_H + 0.3*cm)
+    canvas.restoreState()
 
 def _draw_footer(canvas, doc):
-    """
-    Desenha o rodapé em TODAS as páginas:
-      - Número de página centralizado
-      - Linha horizontal acima
-
-    ABNT: número de página em algarismos arábicos, centrado.
-    """
     canvas.saveState()
-
-    footer_y = MARGIN_BOTTOM - 0.3 * cm
-
-    # Linha acima do rodapé
+    fy = MARGIN_BOTTOM - 0.3*cm
     canvas.setLineWidth(0.4)
-    canvas.line(
-        MARGIN_INTERIOR, footer_y + 0.5 * cm,
-        PAGE_W - MARGIN_EXTERIOR, footer_y + 0.5 * cm,
-    )
-
-    # Número de página centralizado
+    canvas.line(MARGIN_INTERIOR, fy + 0.5*cm, PAGE_W - MARGIN_EXTERIOR, fy + 0.5*cm)
     canvas.setFont(_BASE_FONT, 10)
-    page_num = canvas.getPageNumber()
-    canvas.drawCentredString(
-        PAGE_W / 2,
-        footer_y,
-        str(page_num),
-    )
-
+    canvas.drawCentredString(PAGE_W/2, fy, str(canvas.getPageNumber()))
     canvas.restoreState()
 
+def _draw_draft_page(canvas, doc):
+    canvas.saveState()
+    canvas.setFont("Times-Bold", 90)
+    canvas.setFillColorRGB(0.88, 0.88, 0.88)
+    canvas.translate(PAGE_W/2, PAGE_H/2)
+    canvas.rotate(45)
+    canvas.drawCentredString(0, 0, "RASCUNHO")
+    canvas.restoreState()
+    _draw_footer(canvas, doc)
 
 # =============================================================================
-# CONSTRUTOR DO CADERNO DE QUESTÕES
+# BUILD BOOKLET
 # =============================================================================
-
-def _build_booklet(
-    exam,
-    questions: list,
-    output_path: str,
-    student_name: str = "",
-    student_id: int = 0,
-    logo_path: Optional[str] = None,
-) -> None:
-    """
-    Gera o caderno de questões em PDF.
-
-    Layout:
-      - A4, duas colunas, margens ABNT em espelho
-      - Times-Roman 12pt, leading 18pt (espaçamento 1,5)
-      - Cabeçalho completo na primeira página
-      - Rodapé com número de página em todas as páginas
-      - Fórmulas LaTeX renderizadas como imagens via matplotlib
-
-    Parâmetros:
-        exam:         model Exam
-        questions:    lista de dicts com campos:
-                        number   (int)   — número da questão
-                        stem     (str)   — enunciado (pode conter $LaTeX$)
-                        options  (list)  — lista de dicts {label, text}
-                        image    (str)   — caminho de imagem (opcional)
-        output_path:  caminho completo do PDF de saída
-        student_name: nome do aluno (para cabeçalho)
-        student_id:   ID do aluno
-        logo_path:    caminho do logo da escola (opcional)
-    """
-    # -------------------------------------------------------------------------
-    # Configuração do documento com layout espelho
-    # -------------------------------------------------------------------------
-    # O ReportLab suporta margens espelho via PageTemplate com frames
-    # distintos para páginas pares e ímpares.
-    #
-    # Página ímpar (direita do caderno):
-    #   margem esquerda = INTERIOR (3cm), margem direita = EXTERIOR (2cm)
-    # Página par (esquerda do caderno):
-    #   margem esquerda = EXTERIOR (2cm), margem direita = INTERIOR (3cm)
+def _build_booklet(exam, questions, output_path, student_name="", student_id=0,
+                   student_ra="", student_class="", logo_path=None):
+    n_questions = len(questions)
 
     doc = BaseDocTemplate(
-        output_path,
-        pagesize=A4,
-        # Margens padrão (usadas como fallback)
-        leftMargin=MARGIN_INTERIOR,
-        rightMargin=MARGIN_EXTERIOR,
-        topMargin=MARGIN_TOP,
-        bottomMargin=MARGIN_BOTTOM,
-        title=exam.title if exam.title else "Simulado",
-        author="SAMBA Simulator",
-        subject=exam.area or "",
+        output_path, pagesize=A4,
+        leftMargin=MARGIN_INTERIOR, rightMargin=MARGIN_EXTERIOR,
+        topMargin=MARGIN_TOP, bottomMargin=MARGIN_BOTTOM,
+        title=exam.title or "Simulado", author="SAMBA Simulator",
     )
 
-    # -------------------------------------------------------------------------
-    # Frames das duas colunas para páginas ÍMPARES (margem interior à esquerda)
-    # -------------------------------------------------------------------------
-    def _frames_odd(header_space: float = 0.0):
-        """
-        Cria os dois frames de coluna para páginas ímpares.
-        header_space: espaço extra reservado no topo para o cabeçalho.
-        """
-        col_top    = PAGE_H - MARGIN_TOP - header_space
-        col_height = col_top - MARGIN_BOTTOM - FOOTER_H
+    def frames_odd(hs=0.0):
+        ch = PAGE_H - MARGIN_TOP - hs - MARGIN_BOTTOM - FOOTER_H
+        return [
+            Frame(MARGIN_INTERIOR, MARGIN_BOTTOM+FOOTER_H, COL_W, ch, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id="o1"),
+            Frame(MARGIN_INTERIOR+COL_W+COL_GAP, MARGIN_BOTTOM+FOOTER_H, COL_W, ch, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id="o2"),
+        ]
 
-        frame_left = Frame(
-            x1=MARGIN_INTERIOR,
-            y1=MARGIN_BOTTOM + FOOTER_H,
-            width=COL_W,
-            height=col_height,
-            leftPadding=0, rightPadding=0,
-            topPadding=0,  bottomPadding=0,
-            id="odd_col1",
-        )
-        frame_right = Frame(
-            x1=MARGIN_INTERIOR + COL_W + COL_GAP,
-            y1=MARGIN_BOTTOM + FOOTER_H,
-            width=COL_W,
-            height=col_height,
-            leftPadding=0, rightPadding=0,
-            topPadding=0,  bottomPadding=0,
-            id="odd_col2",
-        )
-        return [frame_left, frame_right]
+    def frames_even(hs=0.0):
+        ch = PAGE_H - MARGIN_TOP - hs - MARGIN_BOTTOM - FOOTER_H
+        return [
+            Frame(MARGIN_EXTERIOR, MARGIN_BOTTOM+FOOTER_H, COL_W, ch, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id="e1"),
+            Frame(MARGIN_EXTERIOR+COL_W+COL_GAP, MARGIN_BOTTOM+FOOTER_H, COL_W, ch, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id="e2"),
+        ]
 
-    def _frames_even(header_space: float = 0.0):
-        """
-        Cria os dois frames de coluna para páginas pares.
-        Espelha as margens: exterior à esquerda, interior à direita.
-        """
-        col_top    = PAGE_H - MARGIN_TOP - header_space
-        col_height = col_top - MARGIN_BOTTOM - FOOTER_H
+    full_frame = Frame(0, 0, PAGE_W, PAGE_H, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id="full")
+    def _on_question_page(canvas, doc):
+        _draw_footer(canvas, doc)
 
-        frame_left = Frame(
-            x1=MARGIN_EXTERIOR,
-            y1=MARGIN_BOTTOM + FOOTER_H,
-            width=COL_W,
-            height=col_height,
-            leftPadding=0, rightPadding=0,
-            topPadding=0,  bottomPadding=0,
-            id="even_col1",
-        )
-        frame_right = Frame(
-            x1=MARGIN_EXTERIOR + COL_W + COL_GAP,
-            y1=MARGIN_BOTTOM + FOOTER_H,
-            width=COL_W,
-            height=col_height,
-            leftPadding=0, rightPadding=0,
-            topPadding=0,  bottomPadding=0,
-            id="even_col2",
-        )
-        return [frame_left, frame_right]
+    def _on_draft_page(canvas, doc):
+        _draw_draft_page(canvas, doc)
 
-    # -------------------------------------------------------------------------
-    # Templates de página
-    # -------------------------------------------------------------------------
-    # Primeira página: reserva espaço para o cabeçalho (HEADER_H)
-    first_page_template = PageTemplate(
-        id="first",
-        frames=_frames_odd(header_space=HEADER_H),
-        onPage=lambda c, d: (
-            _draw_header_first_page(c, d, exam, logo_path),
-            _draw_footer(c, d),
-        ),
-    )
+    # Captura variáveis no closure para os callbacks onPage
+    _exam = exam
+    _sn   = student_name
+    _sr   = student_ra
+    _sc   = student_class
+    _n    = n_questions
+    _lp   = logo_path
 
-    # Páginas ímpares (exceto a primeira)
-    odd_page_template = PageTemplate(
-        id="odd",
-        frames=_frames_odd(),
-        onPage=lambda c, d: _draw_footer(c, d),
-    )
+    cover_tpl   = PageTemplate(id="cover",   frames=[full_frame],
+                               onPage=lambda c,d: _draw_cover(c, _exam, _sn, _sr, _sc, _n, _lp))
+    first_q_tpl = PageTemplate(id="first_q", frames=frames_odd(HEADER_H),
+                               onPage=lambda c,d: (_draw_questions_header(c,d,_exam,_n), _on_question_page(c,d)))
+    odd_tpl     = PageTemplate(id="odd",     frames=frames_odd(),  onPage=_on_question_page)
+    even_tpl    = PageTemplate(id="even",    frames=frames_even(), onPage=_on_question_page)
+    draft_tpl   = PageTemplate(id="draft",   frames=[full_frame],  onPage=_on_draft_page)
 
-    # Páginas pares — espelho
-    even_page_template = PageTemplate(
-        id="even",
-        frames=_frames_even(),
-        onPage=lambda c, d: _draw_footer(c, d),
-    )
+    doc.addPageTemplates([cover_tpl, first_q_tpl, odd_tpl, even_tpl, draft_tpl])
 
-    doc.addPageTemplates([first_page_template, odd_page_template, even_page_template])
-
-    # -------------------------------------------------------------------------
-    # Conteúdo do caderno
-    # -------------------------------------------------------------------------
     story = []
 
-    # Instrução geral (ABNT recomenda instruções antes das questões)
-    instructions = (
+    # CAPA (pg 1) — template "cover" é o primeiro da lista
+    story.append(Spacer(1, 0.1))
+
+    # Primeira página de questões
+    story.append(NextPageTemplate("first_q"))
+    story.append(PageBreak())
+
+    story.append(Paragraph(
         "Leia atentamente cada questão antes de responder. "
         "Marque apenas uma alternativa por questão na folha de respostas. "
-        "Não é permitido o uso de corretivo ou caneta diferente da azul/preta."
-    )
-    story.append(Paragraph(instructions, STYLES["instruction"]))
-    story.append(Spacer(1, 0.3 * cm))
-    story.append(HRFlowable(width="100%", thickness=0.4, color=colors.black))
-    story.append(Spacer(1, 0.2 * cm))
-
-    # Questões
-    for q in questions:
-        q_number = q.get("number", 0)
-        q_stem   = q.get("stem", "")
-        q_options = q.get("options", [])
-        q_image  = q.get("image")  # caminho de imagem opcional
-
-        # Bloco da questão (KeepTogether evita que quebre entre colunas)
-        block = []
-
-        # Número da questão
-        block.append(
-            Paragraph(f"<b>Questão {q_number}</b>", STYLES["question_number"])
-        )
-
-        # Imagem associada à questão (se houver)
-        if q_image and os.path.exists(q_image):
-            try:
-                with PILImage.open(q_image) as pil_img:
-                    iw, ih = pil_img.size
-                # Limita a 90% da largura da coluna, proporcional
-                max_w = COL_W * 0.9
-                scale = min(max_w / iw, (USABLE_H * 0.3) / ih)
-                block.append(Image(q_image, width=iw * scale, height=ih * scale))
-                block.append(Spacer(1, 0.2 * cm))
-            except Exception as exc:
-                print(f"[pdf_generator] Erro ao carregar imagem {q_image}: {exc}")
-
-        # Enunciado (pode conter $LaTeX$)
-        stem_flowables = _parse_text_with_latex(q_stem, STYLES["stem"])
-        block.extend(stem_flowables)
-        block.append(Spacer(1, 0.15 * cm))
-
-        # Alternativas
-        for opt in q_options:
-            label = opt.get("label", "")
-            text  = opt.get("text", "")
-            # Alternativas também podem conter LaTeX
-            opt_text = f"<b>{label})</b> {text}"
-            opt_flowables = _parse_text_with_latex(opt_text, STYLES["option"])
-            block.extend(opt_flowables)
-
-        block.append(Spacer(1, 0.3 * cm))
-
-        # Tenta manter a questão junta; se não couber na coluna, quebra normalmente
-        try:
-            story.append(KeepTogether(block))
-        except Exception:
-            story.extend(block)
-
-    # Adiciona páginas em branco se necessário para fechar o caderno em múltiplo de 4
-    # (padrão de impressão para encadernação tipo caderno)
-    story.append(Spacer(1, 1 * cm))
-
-    # -------------------------------------------------------------------------
-    # Geração do PDF
-    # -------------------------------------------------------------------------
-    doc.build(story)
-
-    # Limpa temporários de LaTeX
-    _cleanup_latex_temps()
-
-
-# =============================================================================
-# CONSTRUTOR DA FOLHA DE RESPOSTAS OMR
-# =============================================================================
-
-def _build_answer_sheet(
-    exam,
-    output_path: str,
-    student_name: str = "",
-    student_id: int = 0,
-) -> None:
-    """
-    Gera a folha de respostas OMR (Optical Mark Recognition).
-
-    Layout:
-      - A4, uma coluna, margens ABNT
-      - Cabeçalho com campos de identificação do aluno
-      - Grade de bolhas configurável (omr_rows × omr_cols)
-      - QR-code opcional (barcode_enabled)
-      - Rodapé com número de página
-
-    A grade é configurada pelos campos do model Exam:
-        exam.omr_rows: número de questões (linhas)
-        exam.omr_cols: número de alternativas (colunas)
-    """
-    from reportlab.platypus import SimpleDocTemplate
-
-    # Lê configuração OMR do simulado (com fallback para padrões)
-    n_rows = getattr(exam, "omr_rows", 10)   # questões
-    n_cols = getattr(exam, "omr_cols", 5)    # alternativas (A-E)
-    barcode = getattr(exam, "barcode_enabled", False)
-    header_fields_json = getattr(exam, "omr_header_fields", None)
-
-    # Campos do cabeçalho
-    default_fields = ["Nome completo", "Turma", "Número", "Data"]
-    if header_fields_json:
-        import json
-        try:
-            header_fields = json.loads(header_fields_json)
-        except Exception:
-            header_fields = default_fields
-    else:
-        header_fields = default_fields
-
-    # Labels das alternativas (A, B, C, ...)
-    col_labels = [chr(ord("A") + i) for i in range(n_cols)]
-
-    doc = SimpleDocTemplate(
-        output_path,
-        pagesize=A4,
-        leftMargin=MARGIN_INTERIOR,
-        rightMargin=MARGIN_EXTERIOR,
-        topMargin=MARGIN_TOP,
-        bottomMargin=MARGIN_BOTTOM,
-        title=f"Folha de Respostas — {exam.title}",
-    )
-
-    story = []
-
-    # -------------------------------------------------------------------------
-    # Cabeçalho da folha de respostas
-    # -------------------------------------------------------------------------
-    story.append(Paragraph(exam.title or "SIMULADO", STYLES["header_title"]))
-    story.append(Paragraph("FOLHA DE RESPOSTAS", STYLES["header_title"]))
-    story.append(Spacer(1, 0.3 * cm))
-
-    # Campos de identificação
-    for field in header_fields:
-        story.append(
-            Paragraph(
-                f"<b>{field}:</b> {'_' * 50}",
-                STYLES["body"],
-            )
-        )
-        story.append(Spacer(1, 0.15 * cm))
-
-    story.append(HRFlowable(width="100%", thickness=0.8, color=colors.black))
-    story.append(Spacer(1, 0.5 * cm))
-
-    # -------------------------------------------------------------------------
-    # Instrução
-    # -------------------------------------------------------------------------
-    story.append(Paragraph(
-        "Marque com um <b>X</b> ou preencha completamente a bolha "
-        "correspondente à alternativa escolhida. Use caneta azul ou preta.",
+        "Não é permitido o uso de corretivo ou caneta diferente da azul/preta.",
         STYLES["instruction"],
     ))
-    story.append(Spacer(1, 0.5 * cm))
-
-    # -------------------------------------------------------------------------
-    # Grade de bolhas
-    # -------------------------------------------------------------------------
-    # Estrutura: linha de cabeçalho + uma linha por questão
-    # Célula de bolha: círculo desenhado via canvas (Paragraph com texto)
-
-    # Cabeçalho da grade: Q | A | B | C | D | E
-    header_row = ["Q"] + col_labels
-    table_data = [header_row]
-
-    for i in range(1, n_rows + 1):
-        row = [str(i)]
-        for _ in range(n_cols):
-            # Bolha vazia representada por "○" (U+25CB)
-            row.append("○")
-        table_data.append(row)
-
-    # Larguras das colunas
-    q_col_w   = 1.0 * cm
-    bubble_w  = (USABLE_W - q_col_w) / n_cols
-    col_widths = [q_col_w] + [bubble_w] * n_cols
-
-    # Estilo da tabela
-    table_style = TableStyle([
-        # Cabeçalho
-        ("BACKGROUND",   (0, 0), (-1, 0), colors.HexColor("#DDDDDD")),
-        ("FONTNAME",     (0, 0), (-1, 0), _BASE_FONT_BOLD),
-        ("FONTSIZE",     (0, 0), (-1, 0), _BASE_SIZE),
-        ("ALIGN",        (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
-        # Corpo
-        ("FONTNAME",     (0, 1), (-1, -1), _BASE_FONT),
-        ("FONTSIZE",     (0, 1), (-1, -1), 14),   # bolhas maiores
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F5F5")]),
-        # Grade
-        ("GRID",         (0, 0), (-1, -1), 0.4, colors.grey),
-        ("BOX",          (0, 0), (-1, -1), 0.8, colors.black),
-        # Altura das linhas
-        ("ROWHEIGHT",    (0, 0), (-1, -1), 0.7 * cm),
-    ])
-
-    grade = Table(table_data, colWidths=col_widths, repeatRows=1)
-    grade.setStyle(table_style)
-    story.append(grade)
-
-    # -------------------------------------------------------------------------
-    # QR-code (se habilitado)
-    # -------------------------------------------------------------------------
-    if barcode:
-        story.append(Spacer(1, 0.5 * cm))
-        try:
-            qr_data = f"SAMBA|exam={exam.id}|student={student_id}"
-            qr_img = qrcode.make(qr_data)
-            # Salva em buffer de memória
-            buf = io.BytesIO()
-            qr_img.save(buf, format="PNG")
-            buf.seek(0)
-            qr_size = 3.0 * cm
-            story.append(Image(buf, width=qr_size, height=qr_size))
-            story.append(Paragraph(
-                f"ID: {exam.id} | Aluno: {student_id}",
-                STYLES["footer"],
-            ))
-        except Exception as exc:
-            print(f"[pdf_generator] Erro ao gerar QR-code: {exc}")
-
-    # -------------------------------------------------------------------------
-    # Rodapé manual (SimpleDocTemplate não suporta onPage diretamente)
-    # -------------------------------------------------------------------------
-    story.append(Spacer(1, 0.5 * cm))
+    story.append(Spacer(1, 0.3*cm))
     story.append(HRFlowable(width="100%", thickness=0.4, color=colors.black))
-    story.append(Paragraph("Página 1", STYLES["footer"]))
+    story.append(Spacer(1, 0.2*cm))
+    story.append(NextPageTemplate("odd"))
 
+    # Questões — rascunho inserido explicitamente a cada DRAFT_EVERY questões
+    DRAFT_EVERY = 6  # insere rascunho após cada grupo de 6 questões
+    for qi, q in enumerate(questions):
+        # Insere rascunho antes da questão que inicia novo grupo (exceto o primeiro)
+        if qi > 0 and qi % DRAFT_EVERY == 0:
+            story.append(NextPageTemplate("draft"))
+            story.append(PageBreak())
+            story.append(Spacer(1, 0.1))  # conteúdo vazio na página de rascunho
+            story.append(NextPageTemplate("odd"))
+            story.append(PageBreak())
+
+        block = []
+        block.append(Paragraph(f"<b>Questão {q.get('number', qi+1)}</b>", STYLES["question_number"]))
+
+        img_path = q.get("image")
+        if img_path and os.path.exists(img_path):
+            try:
+                with PILImage.open(img_path) as pi: iw, ih = pi.size
+                max_w = COL_W * 0.9
+                scale = min(max_w/iw, (USABLE_H*0.3)/ih)
+                block.append(Image(img_path, width=iw*scale, height=ih*scale))
+                block.append(Spacer(1, 0.2*cm))
+            except Exception as e:
+                print(f"[pdf_generator] img error: {e}")
+
+        block.extend(_parse_text_with_latex(q.get("stem",""), STYLES["stem"]))
+        block.append(Spacer(1, 0.15*cm))
+
+        for opt in q.get("options", []):
+            block.extend(_parse_text_with_latex(f"<b>{opt.get('label','')}</b>) {opt.get('text','')}", STYLES["option"]))
+
+        block.append(Spacer(1, 0.3*cm))
+        try: story.append(KeepTogether(block))
+        except: story.extend(block)
+
+    story.append(Spacer(1, 1*cm))
     doc.build(story)
+    _cleanup_latex_temps()
 
+# =============================================================================
+# BUILD ANSWER SHEET
+# =============================================================================
+def _build_answer_sheet(exam, output_path, student_name="", student_id=0,
+                        student_ra="", student_class="", n_questions=None):
+    """
+    Folha de respostas OMR com:
+    - Cabeçalho idêntico ao caderno (logos + escola + dados do aluno)
+    - Círculos (A)(B)(C)(D)(E) em linhas alternadas branco/cinza
+    - Grid dentro de roundRect
+    - Barcode automático
+    - Colunas automáticas: ≤30→2col | ≤60→3col | >60→4col
+    """
+    from reportlab.pdfgen.canvas import Canvas as _Canvas
+
+    if not n_questions:
+        n_questions = getattr(exam, "omr_rows", 10) or 10
+
+    OPTIONS    = ["A", "B", "C", "D", "E"]
+    N_OPTS     = len(OPTIONS)
+
+    if n_questions <= 30:
+        n_grid_cols = 2
+    elif n_questions <= 60:
+        n_grid_cols = 3
+    else:
+        n_grid_cols = 4
+
+    rows_per_col = -(-n_questions // n_grid_cols)
+
+    c = _Canvas(output_path, pagesize=A4)
+    W, H = A4
+    ML = MARGIN_INTERIOR
+    MR = MARGIN_EXTERIOR
+
+    # ── Cabeçalho institucional (idêntico ao caderno) ──────────────
+    hdr_top = H - 1.2 * cm
+    hdr_bot = H - 4.0 * cm
+    c.setLineWidth(0.5)
+    c.line(ML, hdr_bot, W - MR, hdr_bot)
+    c.line(ML, hdr_top, W - MR, hdr_top)
+
+    # Logo SP
+    logo_x = ML
+    logo_y = hdr_bot + 0.2 * cm
+    logo_w = 2.0 * cm
+    logo_h = hdr_top - hdr_bot - 0.4 * cm
+    _sp_asset = os.path.join(STORAGE_BASE, "assets", "logo_sp.png")
+    if os.path.exists(_sp_asset):
+        c.drawImage(_sp_asset, logo_x, logo_y, width=logo_w, height=logo_h,
+                    preserveAspectRatio=True, mask="auto")
+    else:
+        c.setFillColorRGB(0.75, 0.75, 0.75)
+        c.rect(logo_x, logo_y, logo_w, logo_h, fill=1, stroke=0)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Times-Bold", 7)
+        c.drawCentredString(logo_x + logo_w/2, logo_y + logo_h*0.55, "SÃO")
+        c.drawCentredString(logo_x + logo_w/2, logo_y + logo_h*0.35, "PAULO")
+
+    tx = ML + logo_w + 0.3 * cm
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Times-Bold", 7.5)
+    c.drawString(tx, hdr_bot + 2.3 * cm, "GOVERNO DO ESTADO DE SÃO PAULO – SECRETARIA DE ESTADO DA EDUCAÇÃO")
+    c.setFont(_BASE_FONT, 7.5)
+    c.drawString(tx, hdr_bot + 1.8 * cm, "UNIDADE REGIONAL DE ENSINO – REGIÃO BAURU – EE PROF. CHRISTINO CABRAL")
+    c.drawString(tx, hdr_bot + 1.3 * cm, "Rua Gerson França, 19-165 – Jardim Estoril II – CEP: 17016-000")
+    c.drawString(tx, hdr_bot + 0.8 * cm, "Telefones: (14) 3223-3855 (WhatsApp); (14) 3227-4664")
+
+    # Logo Integral
+    bi_x = W - MR - 2.2 * cm
+    bi_y = hdr_bot + 0.2 * cm
+    bi_w = 2.0 * cm
+    bi_h = logo_h
+    _int_asset = os.path.join(STORAGE_BASE, "assets", "logo_integral.png")
+    if os.path.exists(_int_asset):
+        c.drawImage(_int_asset, bi_x, bi_y, width=bi_w, height=bi_h,
+                    preserveAspectRatio=True, mask="auto")
+    else:
+        c.setFillColorRGB(0.0, 0.45, 0.7)
+        c.roundRect(bi_x, bi_y, bi_w, bi_h, 3, fill=1, stroke=0)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Times-Bold", 7)
+        c.drawCentredString(bi_x + bi_w/2, bi_y + bi_h*0.55, "ENSINO")
+        c.drawCentredString(bi_x + bi_w/2, bi_y + bi_h*0.35, "INTEGRAL")
+
+    # ── Título da folha ────────────────────────────────────────────
+    y = hdr_bot - 0.7 * cm
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Times-Bold", 13)
+    c.drawCentredString(W/2, y, "FOLHA DE RESPOSTAS")
+    c.setFont(_BASE_FONT, 9)
+    c.drawCentredString(W/2, y - 0.4 * cm, (exam.title or "SIMULADO").upper())
+
+    # ── Campos do aluno (caixas rounded — igual capa) ──────────────
+    y -= 1.1 * cm
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%d/%m/%Y")
+
+    BOX_H = 0.55 * cm
+    BOX_R = 3       # raio rounded
+
+    def _field_box(label, value, bx, by, bw):
+        c.setStrokeColorRGB(0.3, 0.3, 0.3)
+        c.setFillColorRGB(1, 1, 1)
+        c.setLineWidth(0.5)
+        c.roundRect(bx, by - BOX_H, bw, BOX_H, BOX_R, fill=1, stroke=1)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Times-Bold", 7.5)
+        c.drawString(bx + 0.15 * cm, by - BOX_H * 0.45, f"{label}  ")
+        c.setFont(_BASE_FONT, 8)
+        lw = c.stringWidth(label + "  ", "Times-Bold", 7.5)
+        c.drawString(bx + 0.15 * cm + lw, by - BOX_H * 0.45, value)
+
+    USABLE_W_omr = W - ML - MR
+
+    # Linha 1: Nome (largura total)
+    _field_box("Nome:", student_name or "", ML, y, USABLE_W_omr)
+    y -= BOX_H + 0.2 * cm
+
+    # Linha 2: RA | Série | Data
+    fw = USABLE_W_omr / 3 - 0.1 * cm
+    _field_box("R.A:",   student_ra    or "", ML,                    y, fw)
+    _field_box("Série:", student_class or "", ML + fw + 0.15 * cm,  y, fw)
+    _field_box("Data:",  today,               ML + 2*(fw + 0.15*cm), y, fw)
+    y -= BOX_H + 0.5 * cm
+
+    # ── Instruções ─────────────────────────────────────────────────
+    c.setFont(_BASE_FONT, 7.5)
+    instructions = [
+        "■  Marque apenas UMA alternativa por questão com caneta azul ou preta.",
+        "■  Preencha completamente o círculo.  Marcações rasuradas anulam a questão.",
+        "■  Não amasse, rasgue ou escreva fora dos lugares indicados.",
+    ]
+    for inst in instructions:
+        c.setFillColorRGB(0, 0, 0)
+        c.drawString(ML, y, inst)
+        y -= 0.38 * cm
+    y -= 0.3 * cm
+
+    # ── Grid de questões dentro de roundRect ───────────────────────
+    CIRCLE_R  = 0.21 * cm
+    ROW_H     = 0.62 * cm
+    NUM_W     = 0.75 * cm
+    OPT_W     = 0.88 * cm
+    COL_W_g   = NUM_W + N_OPTS * OPT_W + 0.5 * cm
+    GAP       = (USABLE_W_omr - n_grid_cols * COL_W_g) / (n_grid_cols + 1)
+
+    grid_h    = rows_per_col * ROW_H + ROW_H  # altura total do grid + header
+    grid_top  = y
+    grid_bot  = grid_top - grid_h
+
+    # Fundo rounded do grid
+    GRID_PAD = 0.25 * cm
+    c.setFillColorRGB(0.97, 0.97, 0.97)
+    c.setStrokeColorRGB(0.5, 0.5, 0.5)
+    c.setLineWidth(0.6)
+    c.roundRect(ML - GRID_PAD, grid_bot - GRID_PAD,
+                USABLE_W_omr + 2*GRID_PAD, grid_h + 2*GRID_PAD,
+                6, fill=1, stroke=1)
+    c.setFillColorRGB(0, 0, 0)
+
+    # Cabeçalho do grid (Nº A B C D E)
+    y_hdr = grid_top - ROW_H * 0.3
+    for gc in range(n_grid_cols):
+        col_x = ML + GAP + gc * (COL_W_g + GAP)
+        c.setFont("Times-Bold", 8)
+        c.setFillColorRGB(0, 0, 0)
+        c.drawCentredString(col_x + NUM_W/2, y_hdr, "Nº")
+        for oi, opt in enumerate(OPTIONS):
+            c.drawCentredString(col_x + NUM_W + (oi + 0.5) * OPT_W, y_hdr, opt)
+
+    # Linhas de questão
+    q_num = 1
+    for row in range(rows_per_col):
+        row_y    = grid_top - (row + 1) * ROW_H
+        row_mid  = row_y + ROW_H * 0.52
+
+        # Fundo alternado dentro do roundRect
+        if row % 2 == 0:
+            c.setFillColorRGB(1, 1, 1)
+        else:
+            c.setFillColorRGB(0.91, 0.91, 0.91)
+
+        for gc in range(n_grid_cols):
+            if q_num + gc * rows_per_col > n_questions and gc > 0:
+                continue
+            col_x = ML + GAP + gc * (COL_W_g + GAP)
+            # faixa de fundo para esta célula
+            c.rect(col_x - GAP/2, row_y, COL_W_g + GAP/2, ROW_H, fill=1, stroke=0)
+
+        c.setFillColorRGB(0, 0, 0)
+
+        for gc in range(n_grid_cols):
+            q = row + gc * rows_per_col + 1
+            if q > n_questions:
+                break
+            col_x = ML + GAP + gc * (COL_W_g + GAP)
+
+            # Número
+            c.setFont("Times-Bold", 8)
+            c.drawRightString(col_x + NUM_W - 0.1 * cm, row_mid - 0.1*cm, f"{q:02d}")
+
+            # Círculos
+            for oi in range(N_OPTS):
+                cx = col_x + NUM_W + (oi + 0.5) * OPT_W
+                c.setLineWidth(0.7)
+                c.setStrokeColorRGB(0.2, 0.2, 0.2)
+                c.setFillColorRGB(1, 1, 1)
+                c.circle(cx, row_mid, CIRCLE_R, fill=1, stroke=1)
+                c.setFillColorRGB(0.2, 0.2, 0.2)
+                c.setFont(_BASE_FONT, 6)
+                c.drawCentredString(cx, row_mid - CIRCLE_R * 0.5, OPTIONS[oi])
+
+        q_num += 1
+
+    # ── Barcode ────────────────────────────────────────────────────
+    bar_y = grid_bot - GRID_PAD - 1.5 * cm
+    try:
+        from reportlab.graphics.barcode import code128
+        bc = code128.Code128(
+            f"SAMBA-E{exam.id}-S{student_id}",
+            barHeight=0.9 * cm, barWidth=0.018 * cm,
+            humanReadable=True, fontSize=6,
+        )
+        bc.drawOn(c, W/2 - bc.width/2, bar_y)
+    except Exception as e:
+        c.setFont(_BASE_FONT, 7)
+        c.setFillColorRGB(0, 0, 0)
+        c.drawCentredString(W/2, bar_y + 0.3 * cm, f"SAMBA-E{exam.id}-S{student_id}")
+
+    c.setFont(_BASE_FONT, 6.5)
+    c.setFillColorRGB(0.5, 0.5, 0.5)
+    c.drawCentredString(W/2, bar_y - 0.4 * cm, "Sistema de Avaliação SAMBA — Folha de Respostas")
+
+    c.save()
 
 # =============================================================================
 # FUNÇÕES PÚBLICAS
 # =============================================================================
-
-def _questions_from_exam(db, exam) -> List[Dict]:
-    """
-    Extrai as questões do simulado em formato compatível com _build_booklet().
-
-    Retorna lista de dicts:
-        [
-            {
-                "number":  1,
-                "stem":    "Enunciado da questão...",
-                "options": [
-                    {"label": "A", "text": "..."},
-                    {"label": "B", "text": "..."},
-                    ...
-                ],
-                "image": None,  # ou caminho de arquivo
-            },
-            ...
-        ]
-
-    Se o simulado não tiver questões na seleção final (ExamQuestionLink),
-    retorna lista vazia.
-    """
-    from app.models.exam import ExamQuestionLink
-
-    links = (
-        db.query(ExamQuestionLink)
-        .filter(ExamQuestionLink.exam_id == exam.id)
-        .order_by(ExamQuestionLink.order_idx)
-        .all()
-    )
-
+def _questions_from_exam(db, exam):
+    from app.models.exam import ExamQuestionLink, QuestionImage
+    links = db.query(ExamQuestionLink).filter(ExamQuestionLink.exam_id==exam.id).order_by(ExamQuestionLink.order_idx).all()
     result = []
-    for i, link in enumerate(links, start=1):
+    for i, link in enumerate(links, 1):
         q = link.question
-        if not q:
-            continue
-
-        options = []
-        for opt in sorted(q.options, key=lambda o: o.label):
-            options.append({"label": opt.label, "text": opt.text})
-
+        if not q: continue
+        # Busca imagens do enunciado (context='stem') ordenadas por order_idx
+        stem_imgs = (
+            db.query(QuestionImage)
+            .filter_by(question_id=q.id, context="stem")
+            .order_by(QuestionImage.order_idx)
+            .all()
+        )
+        # Caminho absoluto da primeira imagem do stem (se existir)
+        image_path = None
+        if stem_imgs:
+            p = os.path.join(STORAGE_BASE, stem_imgs[0].storage_path)
+            if os.path.exists(p):
+                image_path = p
         result.append({
-            "number":  i,
-            "stem":    q.stem,
-            "options": options,
-            "image":   None,  # imagens inline ainda não implementadas no upload
+            "number": i,
+            "stem": q.stem,
+            "options": [{"label": o.label, "text": o.text} for o in sorted(q.options, key=lambda o: o.label)],
+            "image": image_path,
         })
-
     return result
 
-
-def generate_exam_pdfs_for_student(
-    db,
-    exam,
-    student_id: int,
-    logo_path: Optional[str] = None,
-    student_name: str = "",
-) -> Dict[str, Any]:
-    """
-    Gera o caderno de questões E a folha de respostas para um aluno.
-
-    Arquivos gerados em /app/storage/exams/{exam_id}/:
-        booklet_exam{exam_id}_student{student_id}.pdf
-        omr_exam{exam_id}_student{student_id}_V1.pdf
-
-    Parâmetros:
-        db:           sessão SQLAlchemy
-        exam:         model Exam (precisa estar LOCKED)
-        student_id:   ID do aluno
-        logo_path:    caminho do logo da escola (opcional)
-        student_name: nome do aluno para o cabeçalho
-
-    Retorna dict com paths gerados e status.
-    """
+def generate_exam_pdfs_for_student(db, exam, student_id, logo_path=None,
+                                   student_name="", student_ra="", student_class=""):
     out_dir = exam_storage_dir(exam.id, create=True)
-
     booklet_path = str(out_dir / f"booklet_exam{exam.id}_student{student_id}.pdf")
     omr_path     = str(out_dir / f"omr_exam{exam.id}_student{student_id}_V1.pdf")
+    questions    = _questions_from_exam(db, exam)
+    n_q          = len(questions)
+    _build_booklet(exam=exam, questions=questions, output_path=booklet_path,
+                   student_name=student_name, student_id=student_id,
+                   student_ra=student_ra, student_class=student_class, logo_path=logo_path)
+    _build_answer_sheet(exam=exam, output_path=omr_path, student_name=student_name,
+                        student_id=student_id, student_ra=student_ra, student_class=student_class,
+                        n_questions=n_q)
+    return {"student_id": student_id, "booklet": booklet_path, "answer_sheet": omr_path,
+            "questions": len(questions), "generated": True}
 
-    questions = _questions_from_exam(db, exam)
-
-    # Caderno de questões
-    _build_booklet(
-        exam=exam,
-        questions=questions,
-        output_path=booklet_path,
-        student_name=student_name,
-        student_id=student_id,
-        logo_path=logo_path,
-    )
-
-    # Folha de respostas
-    _build_answer_sheet(
-        exam=exam,
-        output_path=omr_path,
-        student_name=student_name,
-        student_id=student_id,
-    )
-
-    return {
-        "student_id":   student_id,
-        "booklet":      booklet_path,
-        "answer_sheet": omr_path,
-        "questions":    len(questions),
-        "generated":    True,
-    }
-
-
-def generate_exam_pdfs_for_class(
-    db,
-    exam,
-    class_id: int,
-    logo_path: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Gera PDFs para todos os alunos de uma turma.
-
-    Itera sobre os alunos matriculados na turma (via model Student)
-    e chama generate_exam_pdfs_for_student() para cada um.
-
-    Parâmetros:
-        db:       sessão SQLAlchemy
-        exam:     model Exam
-        class_id: ID da turma
-        logo_path: caminho do logo (opcional, compartilhado entre alunos)
-
-    Retorna dict com lista de resultados por aluno.
-    """
+def generate_exam_pdfs_for_class(db, exam, class_id, logo_path=None):
     from app.models.school import Student
-
-    students = (
-        db.query(Student)
-        .filter(Student.class_id == class_id)
-        .order_by(Student.name)
-        .all()
-    )
-
-    results = []
+    students = db.query(Student).filter(Student.class_id==class_id).order_by(Student.name).all()
+    results  = []
     for student in students:
-        res = generate_exam_pdfs_for_student(
-            db=db,
-            exam=exam,
-            student_id=student.id,
-            logo_path=logo_path,
-            student_name=student.name,
-        )
-        results.append(res)
+        ra         = str(getattr(student, "ra", "") or getattr(student, "number", "") or "")
+        class_name = ""
+        if hasattr(student, "school_class") and student.school_class:
+            class_name = student.school_class.name or ""
+        results.append(generate_exam_pdfs_for_student(
+            db=db, exam=exam, student_id=student.id, logo_path=logo_path,
+            student_name=student.name or "", student_ra=ra, student_class=class_name,
+        ))
+    return {"class_id": class_id, "students_count": len(students), "results": results, "generated": True}
 
-    return {
-        "class_id":       class_id,
-        "students_count": len(students),
-        "results":        results,
-        "generated":      True,
-    }
+# =============================================================================
+# BATCH — merge de PDFs e geração de ZIP por turma
+# =============================================================================
+
+def merge_pdfs(pdf_paths: list, output_path: str) -> str:
+    """Concatena uma lista de PDFs em um único arquivo."""
+    from pypdf import PdfWriter
+    writer = PdfWriter()
+    for p in pdf_paths:
+        if os.path.exists(p):
+            writer.append(p)
+    with open(output_path, "wb") as f:
+        writer.write(f)
+    return output_path
+
+
+def generate_batch_for_class(db, exam, class_id, batch_type: str) -> str:
+    """
+    Gera lote de PDFs para uma turma.
+
+    batch_type:
+      "booklets"   → PDF único com todos os cadernos concatenados
+      "omr"        → PDF único com todas as folhas OMR concatenadas
+      "individual" → ZIP com um PDF por aluno (nomeado pelo RA)
+
+    Reutiliza PDFs já gerados — só regenera se o arquivo não existir.
+    Retorna o caminho do arquivo final (PDF ou ZIP).
+    """
+    import zipfile
+    from app.models.school import Student, SchoolClass
+
+    cls = db.get(SchoolClass, class_id)
+    class_name = (cls.name or str(class_id)).replace(" ", "").replace("/", "-") if cls else str(class_id)
+
+    students = db.query(Student).filter(Student.class_id == class_id).order_by(Student.name).all()
+    out_dir  = exam_storage_dir(exam.id, create=True)
+
+    # Garante que todos os PDFs individuais existem
+    for student in students:
+        booklet_path = str(out_dir / f"booklet_exam{exam.id}_student{student.id}.pdf")
+        omr_path     = str(out_dir / f"omr_exam{exam.id}_student{student.id}_V1.pdf")
+        needs_regen  = (
+            (batch_type in ("booklets", "individual") and not os.path.exists(booklet_path)) or
+            (batch_type == "omr"                       and not os.path.exists(omr_path))
+        )
+        if needs_regen:
+            ra         = str(getattr(student, "ra", "") or getattr(student, "number", "") or "")
+            class_label = student.school_class.name if (hasattr(student, "school_class") and student.school_class) else ""
+            generate_exam_pdfs_for_student(
+                db=db, exam=exam, student_id=student.id,
+                student_name=student.name or "", student_ra=ra, student_class=class_label,
+            )
+
+    if batch_type == "booklets":
+        paths  = [str(out_dir / f"booklet_exam{exam.id}_student{s.id}.pdf") for s in students]
+        output = str(out_dir / f"batch_{class_name}_cadernos.pdf")
+        merge_pdfs(paths, output)
+        return output
+
+    elif batch_type == "omr":
+        paths  = [str(out_dir / f"omr_exam{exam.id}_student{s.id}_V1.pdf") for s in students]
+        output = str(out_dir / f"batch_{class_name}_omr.pdf")
+        merge_pdfs(paths, output)
+        return output
+
+    elif batch_type == "individual":
+        zip_path = str(out_dir / f"batch_{class_name}_individual.zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for student in students:
+                ra = str(getattr(student, "ra", "") or getattr(student, "number", "") or str(student.id))
+                booklet_path = str(out_dir / f"booklet_exam{exam.id}_student{student.id}.pdf")
+                if os.path.exists(booklet_path):
+                    zf.write(booklet_path, arcname=f"{ra}_caderno.pdf")
+        return zip_path
+
+    else:
+        raise ValueError(f"batch_type inválido: {batch_type}")

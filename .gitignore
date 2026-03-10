@@ -1,43 +1,74 @@
-# --- Python ---
+# ── Python ────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.so
+*.egg
 *.egg-info/
-.env
-.env.*
+dist/
+build/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Ambientes virtuais ────────────────────────────────────────────
 .venv/
 venv/
+env/
+ENV/
 
-# --- Node/Next ---
-frontend/.next/
-frontend/node_modules/
-frontend/.eslintcache
+# ── Variáveis de ambiente (NUNCA subir) ───────────────────────────
+.env
+*.env
+!.env.sample
 
-# --- IDE/OS ---
+# ── Docker ────────────────────────────────────────────────────────
+# (docker-compose.yml e Dockerfile SÃO versionados)
+
+# ── Storage — PDFs e uploads gerados ─────────────────────────────
+storage/exams/
+storage/uploads/
+app/storage/exams/
+app/storage/uploads/
+
+# Assets de logos são versionados (são pequenos e necessários)
+# app/storage/assets/ → versionado
+
+# ── Arquivos de teste gerados localmente ─────────────────────────
+*.pdf
+*.xlsx
+*.zip
+*.csv
+booklet_*.pdf
+omr_*.pdf
+devolutiva_*.pdf
+devolutivas_*.zip
+resultados_*.xlsx
+3a_*.pdf
+3a_*.zip
+
+# Exceto fixtures de teste que devem ser versionadas
+!app/storage/assets/simulado.docx
+!tests/fixtures/
+
+# ── IDEs ──────────────────────────────────────────────────────────
 .vscode/
 .idea/
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
 
-# --- Testes/Cobertura ---
-.coverage
-coverage.xml
-htmlcov/
-.pytest_cache/
-
-# --- Docker ---
-**/.ruff_cache/
-**/.pytest_cache/
-**/storage/**/*
-!backend/storage/.gitkeep
-
-# --- Artefatos / temporários ---
+# ── Logs ──────────────────────────────────────────────────────────
 *.log
-*.tmp
-*.temp
+logs/
 
-# --- Projeto específico ---
-samba-simulator/
-samba-simulator-OLD/
+# ── Misc ──────────────────────────────────────────────────────────
+openapi_static_backup.json
+sample.pdf
+seed_pdf_demo.py

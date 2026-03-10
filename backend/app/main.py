@@ -40,6 +40,8 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.openapi.utils import get_openapi
 from swagger_ui_bundle import swagger_ui_3_path
 
+from fastapi.staticfiles import StaticFiles
+
 
 # =============================================================================
 # INSTÂNCIA FASTAPI
@@ -260,6 +262,7 @@ _routers = [
     "app.routes.health",   # ← define o /health  (único lugar)
     "app.routes.coordinator_dashboard",
     "app.routes.questions_crud",
+    "app.routes.omr",
 ]
 
 for r in _routers:
