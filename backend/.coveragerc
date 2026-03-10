@@ -1,6 +1,7 @@
+
 [run]
 branch = True
-source = 
+source =
     app
 omit =
     */__init__.py
@@ -11,4 +12,3 @@ omit =
 show_missing = True
 skip_covered = True
 precision = 2
-``
