@@ -19,4 +19,4 @@ class SkillOut(BaseModel):
 
     # Pydantic v2: revisar opção não migrada: from_attributes = True
 
-    model_config = ConfigDict()
+    model_config = ConfigDict(from_attributes=True)

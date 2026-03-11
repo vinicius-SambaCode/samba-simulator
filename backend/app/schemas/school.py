@@ -27,7 +27,7 @@ class GradeOut(BaseModel):
 
     # Pydantic v2: revisar opção não migrada: from_attributes = True
 
-    model_config = ConfigDict()
+    model_config = ConfigDict(from_attributes=True)
 # ------------ Sections ------------
 class SectionCreate(BaseModel):
     label: str  # "A", "B", ...
@@ -39,19 +39,23 @@ class SectionOut(BaseModel):
 
     # Pydantic v2: revisar opção não migrada: from_attributes = True
 
-    model_config = ConfigDict()
+    model_config = ConfigDict(from_attributes=True)
 # ------------ Classes ------------
 class ClassCreate(BaseModel):
     grade_id: int
     section_id: int
 
+class GradeOutNested(BaseModel):
+    id: int
+    level: EducationLevel
+    year_number: int
+    label: str
+    model_config = ConfigDict(from_attributes=True)
 
 class ClassOut(BaseModel):
     id: int
     grade_id: int
     section_id: int
     name: str
-
-    # Pydantic v2: revisar opção não migrada: from_attributes = True
-
-    model_config = ConfigDict()
+    grade: GradeOutNested | None = None
+    model_config = ConfigDict(from_attributes=True)

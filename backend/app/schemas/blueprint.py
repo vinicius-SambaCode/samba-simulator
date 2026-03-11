@@ -27,4 +27,4 @@ class BlueprintOut(BaseModel):
 
     # Pydantic v2: revisar opção não migrada: from_attributes = True  # SQLAlchemy 2.0
 
-    model_config = ConfigDict()
+    model_config = ConfigDict(from_attributes=True)

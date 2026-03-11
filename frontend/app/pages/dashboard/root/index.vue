@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'dashboard', middleware: 'auth' })
+definePageMeta({ layout: 'dashboard' })
 const { user } = useAuth()
 
 const stats = [

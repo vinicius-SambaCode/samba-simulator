@@ -389,3 +389,105 @@ def lock_exam(exam_id: int, db: Session = Depends(get_db)):
     db.add(exam)
     db.commit()
     return {"detail": "Simulado travado para geração."}
+
+    # ----------------------------
+# Listar simulados (Coord vê todos, Teacher vê os seus)
+# ----------------------------
+@router.get("/", dependencies=[Depends(require_role("COORDINATOR", "ADMIN", "TEACHER"))])
+def list_exams(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_roles = {r.name for r in current_user.roles}
+
+    if "TEACHER" in user_roles and "COORDINATOR" not in user_roles and "ADMIN" not in user_roles:
+        # Teacher vê apenas exams onde foi atribuído
+        assigned_exam_ids = (
+            db.query(ExamTeacherAssignment.exam_id)
+            .filter(ExamTeacherAssignment.teacher_user_id == current_user.id)
+            .distinct()
+            .all()
+        )
+        ids = [r[0] for r in assigned_exam_ids]
+        exams = db.query(Exam).filter(Exam.id.in_(ids)).order_by(Exam.id.desc()).all()
+    else:
+        exams = db.query(Exam).order_by(Exam.id.desc()).all()
+
+    return [
+        {
+            "id": e.id,
+            "title": e.title,
+            "area": e.area,
+            "options_count": e.options_count,
+            "answer_source": e.answer_source,
+            "status": e.status,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e in exams
+    ]
+
+
+# ----------------------------
+# Buscar simulado por ID
+# ----------------------------
+@router.get("/{exam_id}", dependencies=[Depends(require_role("COORDINATOR", "ADMIN", "TEACHER"))])
+def get_exam(exam_id: int, db: Session = Depends(get_db)):
+    exam = _get_exam_or_404(db, exam_id)
+    return {
+        "id": exam.id,
+        "title": exam.title,
+        "area": exam.area,
+        "options_count": exam.options_count,
+        "answer_source": exam.answer_source,
+        "status": exam.status,
+        "created_at": exam.created_at.isoformat() if exam.created_at else None,
+    }
+
+@router.get("/{exam_id}/classes", dependencies=[Depends(require_role("COORDINATOR", "ADMIN"))])
+def list_exam_classes(exam_id: int, db: Session = Depends(get_db)):
+    """Retorna as turmas vinculadas ao simulado via assign-classes."""
+    exam = _get_exam_or_404(db, exam_id)
+    return [
+        {
+            "class_id":   a.class_id,
+            "class_name": a.school_class.name if a.school_class else f"Turma #{a.class_id}",
+        }
+        for a in exam.class_assignments
+    ]
+
+@router.get("/{exam_id}/teacher-assignments", dependencies=[Depends(require_role("COORDINATOR", "ADMIN"))])
+def list_exam_teacher_assignments(exam_id: int, db: Session = Depends(get_db)):
+    exam = _get_exam_or_404(db, exam_id)
+    return [
+        {
+            "id":              a.id,
+            "exam_id":         exam_id,
+            "teacher_user_id": a.teacher_user_id,
+            "class_id":        a.class_id,
+            "discipline_id":   a.discipline_id,
+        }
+        for a in exam.teacher_assignments
+    ]
+
+
+@router.get("/{exam_id}/my-assignment")
+def get_my_assignment(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna o assignment do professor logado neste simulado."""
+    exam = _get_exam_or_404(db, exam_id)
+    assignment = next(
+        (a for a in exam.teacher_assignments if a.teacher_user_id == current_user.id),
+        None
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Nenhum assignment encontrado para este professor.")
+    discipline = db.get(Discipline, assignment.discipline_id)
+    return {
+        "class_id":        assignment.class_id,
+        "discipline_id":   assignment.discipline_id,
+        "class_name":      assignment.school_class.name if assignment.school_class else None,
+        "discipline_name": discipline.name if discipline else None,
+    }

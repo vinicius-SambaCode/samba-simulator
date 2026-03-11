@@ -214,6 +214,8 @@ async def swagger_ui_redirect():
     return get_swagger_ui_oauth2_redirect_html()
 
 
+
+
 # =============================================================================
 # REGISTRO DE ROUTERS
 # =============================================================================
@@ -266,6 +268,7 @@ _routers = [
     "app.routes.coordinator_dashboard",
     "app.routes.questions_crud",
     "app.routes.omr",
+    "app.routes.notifications",
 ]
 
 for r in _routers:

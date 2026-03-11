@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr, ConfigDict
 
 class LoginIn(BaseModel):
     """ Útil se você quiser um login JSON em paralelo ao form-data. """
-    email: EmailStr
+    email: str
     password: str
 
 
@@ -52,17 +52,22 @@ class LogoutIn(BaseModel):
 
 class UserCreate(BaseModel):
     name: str
-    email: EmailStr
+    email: str
     password: str
     role: str  # validada contra tabela roles
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class UserOut(BaseModel):
     id: int
     name: str
-    email: EmailStr
+    email: str
     roles: List[str]
 
-    # Pydantic v2: revisar opção não migrada: from_attributes = True  # compatível com objetos ORM
-
-    model_config = ConfigDict()
+    model_config = ConfigDict(from_attributes=True)

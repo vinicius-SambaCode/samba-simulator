@@ -135,7 +135,12 @@ def list_questions(
     if author_user_id and is_coord:
         q = q.filter(Question.author_user_id == author_user_id)
 
-    return [_q_dict(q) for q in q.order_by(Question.id).all()]
+    questions = q.order_by(Question.id).all()
+    links = {
+        lnk.question_id: lnk.correct_label
+        for lnk in db.query(ExamQuestionLink).filter_by(exam_id=exam_id).all()
+    }
+    return [_q_dict(q, include_images=True, correct_label=links.get(q.id)) for q in questions]
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +162,64 @@ def get_question(
     return _q_dict(q, include_images=True, correct_label=link.correct_label if link else None)
 
 
+
+# ---------------------------------------------------------------------------
+# POST /exams/{exam_id}/questions  — criação manual de questão
+# ---------------------------------------------------------------------------
+
+@router.post("/{exam_id}/questions", dependencies=[Depends(require_role("TEACHER"))])
+def create_question(
+    exam_id: int, payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    exam = _get_exam_or_404(db, exam_id)
+    _assert_collecting(exam)
+
+    class_id      = payload.get("class_id")
+    discipline_id = payload.get("discipline_id")
+    if class_id and discipline_id:
+        _assert_teacher_assigned(db, exam, current_user, class_id, discipline_id)
+
+    stem = (payload.get("stem") or "").strip()
+    if not stem:
+        raise HTTPException(400, "Enunciado obrigatório.")
+
+    options = payload.get("options") or []
+    _validate_options(exam, {o["label"].upper() for o in options})
+
+    q = Question(
+        exam_id=exam_id,
+        author_user_id=current_user.id,
+        discipline_id=discipline_id,
+        class_id=class_id,
+        stem=stem,
+        source="manual",
+        state="submitted",
+        has_images=False,
+    )
+    db.add(q)
+    db.flush()
+
+    for o in options:
+        db.add(QuestionOption(
+            question_id=q.id,
+            label=o["label"].strip().upper(),
+            text=o["text"].strip(),
+        ))
+
+    correct_label = payload.get("correct_label")
+    if correct_label:
+        _upsert_link(db, exam, q.id, correct_label.strip().upper())
+
+    record_question_added(db, exam, q)
+    db.commit()
+    db.refresh(q)
+
+    link = db.query(ExamQuestionLink).filter_by(exam_id=exam_id, question_id=q.id).first()
+    return _q_dict(q, include_images=True, correct_label=link.correct_label if link else None)
+
+
 # ---------------------------------------------------------------------------
 # PATCH /exams/{exam_id}/questions/{question_id}
 # ---------------------------------------------------------------------------
@@ -168,7 +231,18 @@ def update_question(
     current_user: User = Depends(get_current_user),
 ):
     exam = _get_exam_or_404(db, exam_id)
-    _assert_collecting(exam)
+    roles = {r.name for r in getattr(current_user, "roles", [])}
+    is_coord = "COORDINATOR" in roles
+
+    # COORDINATOR pode editar gabarito em qualquer status do simulado
+    # Professor só pode editar enquanto está em coleta
+    only_correct_label = (
+        set(payload.keys()) - {"correct_label"}
+    ) == set()
+
+    if not (is_coord and only_correct_label):
+        _assert_collecting(exam)
+
     q = _get_question_or_404(db, exam_id, question_id)
     _assert_can_edit(q, current_user)
 
@@ -205,7 +279,18 @@ def delete_question(
     current_user: User = Depends(get_current_user),
 ):
     exam = _get_exam_or_404(db, exam_id)
-    _assert_collecting(exam)
+    roles = {r.name for r in getattr(current_user, "roles", [])}
+    is_coord = "COORDINATOR" in roles
+
+    # COORDINATOR pode editar gabarito em qualquer status do simulado
+    # Professor só pode editar enquanto está em coleta
+    only_correct_label = (
+        set(payload.keys()) - {"correct_label"}
+    ) == set()
+
+    if not (is_coord and only_correct_label):
+        _assert_collecting(exam)
+
     q = _get_question_or_404(db, exam_id, question_id)
     _assert_can_edit(q, current_user)
 

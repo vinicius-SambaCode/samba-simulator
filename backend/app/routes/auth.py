@@ -43,6 +43,7 @@ from app.schemas.auth import (
     TokenOut,
     UserCreate,
     UserOut,
+    UserUpdate,
     RefreshIn,
     LogoutIn,
 )
@@ -232,7 +233,7 @@ def me(current_user: User = Depends(get_current_user)):
 @router.post(
     "/users",
     response_model=UserOut,
-    dependencies=[Depends(require_role("ADMIN"))]
+    dependencies=[Depends(require_role("ADMIN", "COORDINATOR"))]
 )
 def create_user(
     data: UserCreate,
@@ -264,3 +265,81 @@ def create_user(
         email=user.email,
         roles=[r.name for r in user.roles],
     )
+
+
+# ---------------------------------------------------------------------------
+# PATCH /auth/users/{user_id}  — editar nome, email, senha, status
+# ---------------------------------------------------------------------------
+
+@router.patch(
+    "/users/{user_id}",
+    response_model=UserOut,
+    dependencies=[Depends(require_role("ADMIN", "COORDINATOR"))]
+)
+def update_user(
+    user_id: int,
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    if data.name is not None:
+        user.name = data.name.strip()
+
+    if data.email is not None:
+        conflict = db.query(User).filter(User.email == data.email, User.id != user_id).first()
+        if conflict:
+            raise HTTPException(status_code=400, detail="E-mail já está em uso.")
+        user.email = data.email.strip()
+
+    if data.password is not None and data.password.strip():
+        user.password_hash = hash_password(data.password)
+
+    if data.is_active is not None:
+        user.is_active = data.is_active
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return UserOut(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        roles=[r.name for r in user.roles],
+    )
+
+
+# ---------------------------------------------------------------------------
+# DELETE /auth/users/{user_id}  — remover professor (cascade manual)
+# ---------------------------------------------------------------------------
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=204,
+    dependencies=[Depends(require_role("ADMIN", "COORDINATOR"))]
+)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Você não pode excluir sua própria conta.")
+
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    from app.models.exam import TeacherClassSubject, ExamTeacherAssignment, ExamTeacherProgress, ExamProgressLog
+
+    db.query(ExamProgressLog).filter_by(teacher_user_id=user_id).delete()
+    db.query(ExamTeacherProgress).filter_by(teacher_user_id=user_id).delete()
+    db.query(ExamTeacherAssignment).filter_by(teacher_user_id=user_id).delete()
+    db.query(TeacherClassSubject).filter_by(teacher_user_id=user_id).delete()
+
+    db.delete(user)
+    db.commit()
+    return None

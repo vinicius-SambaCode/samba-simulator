@@ -226,26 +226,67 @@ def seed_disciplines(db: Session) -> dict[str, Discipline]:
     return {n: _get_or_create_discipline(db, n) for n in names}
 
 
+def _school_already_seeded(db: Session) -> bool:
+    """
+    Verifica se a estrutura escolar já foi semeada ao menos uma vez.
+    Usa a existência de qualquer SchoolGrade como indicador.
+    Assim, turmas excluídas pelo coordenador não são recriadas no próximo up.
+    """
+    return db.query(SchoolGrade).first() is not None
+
+
 def seed_school_structure(db: Session) -> dict[str, SchoolClass]:
     print("\n🏫 Estrutura escolar...")
 
-    # Séries do Ensino Médio
-    g1 = _get_or_create_grade(db, EducationLevel.MEDIO, 1, "1ª")
-    g2 = _get_or_create_grade(db, EducationLevel.MEDIO, 2, "2ª")
-    g3 = _get_or_create_grade(db, EducationLevel.MEDIO, 3, "3ª")
+    if _school_already_seeded(db):
+        print("  ✔  Estrutura escolar já existe — seed de turmas ignorado.")
+        print("     (Turmas gerenciadas pelo coordenador via painel.)")
+        # Retorna as turmas que ainda existem no banco para os mapeamentos
+        existing = db.query(SchoolClass).all()
+        classes = {}
+        for sc in existing:
+            grade = db.get(SchoolGrade, sc.grade_id)
+            section = db.get(ClassSection, sc.section_id)
+            if grade and section:
+                if grade.level == EducationLevel.MEDIO:
+                    key = f"M{grade.year_number}{section.label}"
+                else:
+                    key = f"F{grade.year_number}{section.label}"
+                classes[key] = sc
+        return classes
 
-    # Seções
-    sec_a = _get_or_create_section(db, "A")
-    sec_b = _get_or_create_section(db, "B")
-    sec_c = _get_or_create_section(db, "C")
+    # ── Primeira execução: cria toda a estrutura ──
+    print("  ℹ️  Primeira execução — criando estrutura escolar inicial.")
 
-    # Turmas
+    # ── Ensino Médio: 1ª a 3ª Série ──
+    medio = {}
+    for year in range(1, 4):
+        medio[year] = _get_or_create_grade(db, EducationLevel.MEDIO, year, f"{year}ª")
+
+    # ── Ensino Fundamental: 6º a 9º Ano (anos finais) ──
+    fund = {}
+    for year in range(6, 10):
+        fund[year] = _get_or_create_grade(db, EducationLevel.FUNDAMENTAL, year, f"{year}º")
+
+    # ── Seções A → E ──
+    secoes = {}
+    for letra in ("A", "B", "C", "D", "E"):
+        secoes[letra] = _get_or_create_section(db, letra)
+
+    # ── Turmas Médio: 1ªA→E, 2ªA→E, 3ªA→E ──
     classes = {}
-    classes["1A"] = _get_or_create_class(db, g1, sec_a, "1ªA")
-    classes["2A"] = _get_or_create_class(db, g2, sec_a, "2ªA")
-    classes["3A"] = _get_or_create_class(db, g3, sec_a, "3ªA")
-    classes["3B"] = _get_or_create_class(db, g3, sec_b, "3ªB")
-    classes["3C"] = _get_or_create_class(db, g3, sec_c, "3ªC")
+    for year in range(1, 4):
+        for letra in ("A", "B", "C", "D", "E"):
+            key  = f"M{year}{letra}"
+            name = f"{year}ª{letra}"
+            classes[key] = _get_or_create_class(db, medio[year], secoes[letra], name)
+
+    # ── Turmas Fundamental: 6ºA→E, 7ºA→E, 8ºA→E, 9ºA→E ──
+    for year in range(6, 10):
+        for letra in ("A", "B", "C", "D", "E"):
+            key  = f"F{year}{letra}"
+            name = f"{year}º{letra}"
+            classes[key] = _get_or_create_class(db, fund[year], secoes[letra], name)
 
     return classes
 
@@ -263,23 +304,21 @@ def seed_teacher_assignments(
     fis  = disciplines["Física"]
     qui  = disciplines["Química"]
 
-    # Matemática: prof.mat nas turmas 3A, 3B, 3C
-    for cls_key in ("3A", "3B", "3C"):
+    for cls_key in ("M3A", "M3B", "M3C"):
+        if cls_key not in classes:
+            print(f"  ⚠️  Turma {cls_key} não existe mais — mapeamento ignorado.")
+            continue
         _get_or_create_teacher_class_subject(db, users["mat"], classes[cls_key], mat)
-
-    # Português: prof.port nas turmas 3A, 3B, 3C
-    for cls_key in ("3A", "3B", "3C"):
         _get_or_create_teacher_class_subject(db, users["port"], classes[cls_key], port)
 
-    # Física: prof.fis nas turmas 3A, 3B
-    for cls_key in ("3A", "3B"):
+    for cls_key in ("M3A", "M3B"):
+        if cls_key not in classes:
+            print(f"  ⚠️  Turma {cls_key} não existe mais — mapeamento ignorado.")
+            continue
         _get_or_create_teacher_class_subject(db, users["fis"], classes[cls_key], fis)
-
-    # Química: prof.qui nas turmas 3A, 3B
-    for cls_key in ("3A", "3B"):
         _get_or_create_teacher_class_subject(db, users["qui"], classes[cls_key], qui)
 
-    print("  ✔  Mapeamentos criados")
+    print("  ✔  Mapeamentos verificados")
 
 
 # =============================================================================

@@ -1,73 +1,111 @@
 // composables/useAuth.ts
+type BackendRole = 'ADMIN' | 'COORDINATOR' | 'TEACHER' | 'admin' | 'coordinator' | 'teacher'
+
 export type UserRole = 'root' | 'coordenador' | 'professor'
 
 export interface User {
-  id: string
+  id: number
   name: string
   email: string
   role: UserRole
-  escola?: string
+  roles: UserRole[]
 }
 
-const MOCK_USERS: Record<string, User> = {
-  root: {
-    id: '1',
-    name: 'Admin Root',
-    email: 'root@smesp.edu.br',
-    role: 'root',
-  },
-  coordenador: {
-    id: '2',
-    name: 'Maria Silva',
-    email: 'msilva@emef.smesp.edu.br',
-    role: 'coordenador',
-    escola: 'EMEF Prof. João Pessoa',
-  },
-  professor: {
-    id: '3',
-    name: 'Carlos Mendes',
-    email: 'cmendes@emef.smesp.edu.br',
-    role: 'professor',
-    escola: 'EMEF Prof. João Pessoa',
-  },
+function mapRole(backendRole: string): UserRole {
+  const map: Record<string, UserRole> = {
+    ADMIN:       'root',
+    admin:       'root',
+    COORDINATOR: 'coordenador',
+    coordinator: 'coordenador',
+    TEACHER:     'professor',
+    teacher:     'professor',
+  }
+  return map[backendRole] ?? 'professor'
 }
-
-const currentUser = ref<User | null>(null)
 
 export function useAuth() {
+  const currentUser = useState<User | null>('current_user', () => null)
+  const { get, accessToken } = useApi()
+
   const roleRoutes: Record<UserRole, string> = {
-    root: '/dashboard/root',
+    root:        '/dashboard/root',
     coordenador: '/dashboard/coordenador',
-    professor: '/dashboard/professor',
-  }
-
-  async function login(email: string, password: string): Promise<boolean> {
-    await new Promise(r => setTimeout(r, 800))
-    let mockUser: User | undefined
-    if (email.startsWith('root')) mockUser = MOCK_USERS.root
-    else if (email.startsWith('coord')) mockUser = MOCK_USERS.coordenador
-    else mockUser = MOCK_USERS.professor
-    if (mockUser) {
-      currentUser.value = mockUser
-      return true
-    }
-    return false
-  }
-
-  async function logout() {
-    currentUser.value = null
-    await navigateTo('/login')
+    professor:   '/dashboard/professor',
   }
 
   function getDashboardRoute(role: UserRole) {
     return roleRoutes[role]
   }
 
+  async function fetchMe() {
+    try {
+      const me = await get<{ id: number; name: string; email: string; roles: BackendRole[] }>('/auth/me')
+      const mappedRoles = me.roles.map(mapRole)
+      const priority: UserRole[] = ['root', 'coordenador', 'professor']
+      const primaryRole = priority.find(r => mappedRoles.includes(r)) ?? 'professor'
+      currentUser.value = {
+        id:    me.id,
+        name:  me.name,
+        email: me.email,
+        role:  primaryRole,
+        roles: mappedRoles,
+      }
+    } catch {
+      // Token inválido ou expirado — limpa tudo
+      currentUser.value = null
+      accessToken.value = null
+    }
+  }
+
+  async function login(email: string, password: string): Promise<boolean> {
+    try {
+      const formData = new URLSearchParams()
+      formData.append('username', email)
+      formData.append('password', password)
+
+      const res = await fetch('http://localhost:8000/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'include',
+        body: formData.toString(),
+      })
+
+      if (!res.ok) return false
+
+      const data = await res.json()
+      accessToken.value = data.access_token
+
+      await fetchMe()
+      return !!currentUser.value
+    } catch {
+      return false
+    }
+  }
+
+  async function logout() {
+    try {
+      await fetch('http://localhost:8000/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken.value ? { Authorization: `Bearer ${accessToken.value}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({ logout_all: false }),
+      })
+    } catch {}
+
+    currentUser.value = null
+    accessToken.value = null
+    await navigateTo('/login')
+  }
+
   return {
-    user: readonly(currentUser),
+    user:            readonly(currentUser),
     isAuthenticated: computed(() => !!currentUser.value),
     login,
     logout,
+    fetchMe,
     getDashboardRoute,
   }
 }
