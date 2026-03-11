@@ -476,18 +476,28 @@ def get_my_assignment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Retorna o assignment do professor logado neste simulado."""
+    """Retorna todos os assignments do professor logado neste simulado (pode ter múltiplas turmas)."""
     exam = _get_exam_or_404(db, exam_id)
-    assignment = next(
-        (a for a in exam.teacher_assignments if a.teacher_user_id == current_user.id),
-        None
-    )
-    if not assignment:
+    assignments = [a for a in exam.teacher_assignments if a.teacher_user_id == current_user.id]
+    if not assignments:
         raise HTTPException(status_code=404, detail="Nenhum assignment encontrado para este professor.")
-    discipline = db.get(Discipline, assignment.discipline_id)
+
+    result = []
+    for assignment in assignments:
+        discipline = db.get(Discipline, assignment.discipline_id)
+        result.append({
+            "class_id":        assignment.class_id,
+            "discipline_id":   assignment.discipline_id,
+            "class_name":      assignment.school_class.name if assignment.school_class else None,
+            "discipline_name": discipline.name if discipline else None,
+        })
+
+    # Retorna lista completa + atalho para o primeiro (compatibilidade com frontend antigo)
+    first = result[0]
     return {
-        "class_id":        assignment.class_id,
-        "discipline_id":   assignment.discipline_id,
-        "class_name":      assignment.school_class.name if assignment.school_class else None,
-        "discipline_name": discipline.name if discipline else None,
+        "class_id":        first["class_id"],
+        "discipline_id":   first["discipline_id"],
+        "class_name":      first["class_name"],
+        "discipline_name": first["discipline_name"],
+        "assignments":     result,  # lista completa de turmas
     }

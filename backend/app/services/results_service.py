@@ -216,7 +216,7 @@ def export_results_xlsx(db: Session, exam_id: int, class_id: int) -> bytes:
     for did in disc_ids:
         headers.append(f"Nota {disc_names[did]}")
     for i, link in enumerate(links):
-        headers.append(f"Q{link.order_idx+1:02d}")
+        headers.append(f"Q{i+1:02d}")
 
     ws.append(headers)
     hdr_row = 3

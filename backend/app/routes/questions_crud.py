@@ -53,6 +53,35 @@ def _assert_collecting(exam):
         raise HTTPException(400, f"Simulado em status '{exam.status}' — operação inválida.")
 
 
+def _get_quota_info(db, exam_id, discipline_id, class_id, author_user_id):
+    """Retorna (quota, já_enviadas). quota=0 significa sem limite configurado."""
+    from app.models.exam import ExamDisciplineQuota, ExamTeacherProgress
+    quota_row = db.query(ExamDisciplineQuota).filter_by(
+        exam_id=exam_id, discipline_id=discipline_id
+    ).first()
+    quota = quota_row.quota if quota_row else 0
+    if quota == 0:
+        return 0, 0
+    progress = db.query(ExamTeacherProgress).filter_by(
+        exam_id=exam_id, teacher_user_id=author_user_id,
+        discipline_id=discipline_id, class_id=class_id,
+    ).first()
+    submitted = progress.submitted if progress else 0
+    return quota, submitted
+
+
+def _assert_quota_not_exceeded(db, exam, discipline_id, class_id, author_user_id, adding=1):
+    """Lança 400 se o professor já atingiu ou vai exceder a cota."""
+    quota, submitted = _get_quota_info(db, exam.id, discipline_id, class_id, author_user_id)
+    if quota > 0 and submitted + adding > quota:
+        disponivel = max(0, quota - submitted)
+        raise HTTPException(
+            400,
+            f"Cota excedida: você pode enviar ainda {disponivel} questão(ões) "
+            f"(cota={quota}, já enviadas={submitted}, tentando adicionar={adding})."
+        )
+
+
 def _assert_can_edit(question, current_user):
     roles = {r.name for r in getattr(current_user, "roles", [])}
     if question.author_user_id != current_user.id and "COORDINATOR" not in roles:
@@ -185,6 +214,10 @@ def create_question(
     if not stem:
         raise HTTPException(400, "Enunciado obrigatório.")
 
+    # Validação de cota
+    if class_id and discipline_id:
+        _assert_quota_not_exceeded(db, exam, discipline_id, class_id, current_user.id, adding=1)
+
     options = payload.get("options") or []
     _validate_options(exam, {o["label"].upper() for o in options})
 
@@ -279,17 +312,7 @@ def delete_question(
     current_user: User = Depends(get_current_user),
 ):
     exam = _get_exam_or_404(db, exam_id)
-    roles = {r.name for r in getattr(current_user, "roles", [])}
-    is_coord = "COORDINATOR" in roles
-
-    # COORDINATOR pode editar gabarito em qualquer status do simulado
-    # Professor só pode editar enquanto está em coleta
-    only_correct_label = (
-        set(payload.keys()) - {"correct_label"}
-    ) == set()
-
-    if not (is_coord and only_correct_label):
-        _assert_collecting(exam)
+    _assert_collecting(exam)
 
     q = _get_question_or_404(db, exam_id, question_id)
     _assert_can_edit(q, current_user)
@@ -347,6 +370,9 @@ async def upload_questions(
 
     if not parsed:
         raise HTTPException(422, "Nenhuma questão encontrada no arquivo.")
+
+    # Validação de cota antes de inserir
+    _assert_quota_not_exceeded(db, exam, discipline_id, class_id, current_user.id, adding=len(parsed))
 
     # Extrai imagens do docx agrupadas por questão (por posição no XML)
     images_by_q: dict = {}
@@ -422,3 +448,137 @@ async def upload_questions(
         "images_saved": total_images,
         "question_ids": created_ids,
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /exams/{exam_id}/questions/{question_id}/images
+# Upload de imagem avulsa para questão manual (enunciado ou alternativa)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+@router.post("/{exam_id}/questions/{question_id}/images", dependencies=[Depends(require_role("TEACHER"))])
+async def upload_question_image(
+    exam_id: int,
+    question_id: int,
+    context: str = Form("stem"),   # "stem" | "option_A" | "option_B" ...
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Faz upload de uma imagem para o enunciado ou alternativa de uma questão manual."""
+    exam = _get_exam_or_404(db, exam_id)
+    _assert_collecting(exam)
+    q = _get_question_or_404(db, exam_id, question_id)
+    _assert_can_edit(q, current_user)
+
+    filename = (file.filename or "").lower()
+    ext = next((e for e in _ALLOWED_IMAGE_EXTENSIONS if filename.endswith(e)), "")
+    if not ext:
+        raise HTTPException(400, f"Formato não suportado. Use: {', '.join(sorted(_ALLOWED_IMAGE_EXTENSIONS))}")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(400, "Arquivo vazio.")
+    if len(file_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Imagem muito grande. Máximo: 10 MB.")
+
+    # Detecta dimensões
+    width_px = height_px = None
+    try:
+        import io as _io
+        from PIL import Image as _PIL
+        with _PIL.open(_io.BytesIO(file_bytes)) as im:
+            width_px, height_px = im.size
+    except Exception:
+        pass
+
+    # Salva em disco
+    import uuid, os
+    from app.models.exam import QuestionImage
+
+    storage_base = os.environ.get("STORAGE_DIR", "/app/storage")
+    folder = os.path.join(storage_base, "questions", str(question_id))
+    os.makedirs(folder, exist_ok=True)
+
+    safe_ext = ext.lstrip(".")
+    if safe_ext == "jpg":
+        safe_ext = "jpeg"
+    unique_name = f"img_{context}_{uuid.uuid4().hex[:8]}.{safe_ext}"
+    abs_path = os.path.join(folder, unique_name)
+
+    with open(abs_path, "wb") as f:
+        f.write(file_bytes)
+
+    storage_path = f"questions/{question_id}/{unique_name}"
+    mime_type = f"image/{safe_ext}"
+
+    # Determina order_idx (próximo na sequência do mesmo context)
+    from sqlalchemy import func
+    max_idx = db.query(func.max(QuestionImage.order_idx)).filter_by(
+        question_id=question_id, context=context
+    ).scalar()
+    order_idx = (max_idx or -1) + 1
+
+    img = QuestionImage(
+        question_id=question_id,
+        storage_path=storage_path,
+        mime_type=mime_type,
+        context=context,
+        order_idx=order_idx,
+        width_px=width_px,
+        height_px=height_px,
+    )
+    db.add(img)
+    q.has_images = True
+    db.add(q)
+    db.commit()
+    db.refresh(img)
+
+    return {
+        "id":           img.id,
+        "url":          img.url_path(),
+        "context":      img.context,
+        "order_idx":    img.order_idx,
+        "mime_type":    img.mime_type,
+        "width_px":     img.width_px,
+        "height_px":    img.height_px,
+    }
+
+
+# ---------------------------------------------------------------------------
+# DELETE /exams/{exam_id}/questions/{question_id}/images/{image_id}
+# ---------------------------------------------------------------------------
+
+@router.delete("/{exam_id}/questions/{question_id}/images/{image_id}", dependencies=[Depends(require_role("TEACHER"))])
+def delete_question_image(
+    exam_id: int, question_id: int, image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.exam import QuestionImage
+    import os
+
+    exam = _get_exam_or_404(db, exam_id)
+    _assert_collecting(exam)
+    q = _get_question_or_404(db, exam_id, question_id)
+    _assert_can_edit(q, current_user)
+
+    img = db.query(QuestionImage).filter_by(id=image_id, question_id=question_id).first()
+    if not img:
+        raise HTTPException(404, "Imagem não encontrada.")
+
+    abs_path = img.absolute_path()
+    if os.path.exists(abs_path):
+        os.remove(abs_path)
+
+    db.delete(img)
+
+    # Atualiza has_images se não sobrou nenhuma
+    remaining = db.query(QuestionImage).filter_by(question_id=question_id).count()
+    if remaining == 0:
+        q.has_images = False
+        db.add(q)
+
+    db.commit()
+    return {"detail": "Imagem removida.", "image_id": image_id}
