@@ -682,13 +682,18 @@ def _build_answer_sheet(exam, output_path, student_name="", student_id=0,
 # =============================================================================
 # FUNÇÕES PÚBLICAS
 # =============================================================================
-def _questions_from_exam(db, exam):
+def _questions_from_exam(db, exam, class_id=None):
     from app.models.exam import ExamQuestionLink, QuestionImage
     links = db.query(ExamQuestionLink).filter(ExamQuestionLink.exam_id==exam.id).order_by(ExamQuestionLink.order_idx).all()
     result = []
-    for i, link in enumerate(links, 1):
+    seq = 0
+    for link in links:
         q = link.question
         if not q: continue
+        # Filtrar por turma quando informado
+        if class_id is not None and q.class_id != class_id:
+            continue
+        seq += 1
         # Busca imagens do enunciado (context='stem') ordenadas por order_idx
         stem_imgs = (
             db.query(QuestionImage)
@@ -703,7 +708,7 @@ def _questions_from_exam(db, exam):
             if os.path.exists(p):
                 image_path = p
         result.append({
-            "number": i,
+            "number": seq,
             "stem": q.stem,
             "options": [{"label": o.label, "text": o.text} for o in sorted(q.options, key=lambda o: o.label)],
             "image": image_path,
@@ -711,11 +716,12 @@ def _questions_from_exam(db, exam):
     return result
 
 def generate_exam_pdfs_for_student(db, exam, student_id, logo_path=None,
-                                   student_name="", student_ra="", student_class=""):
+                                   student_name="", student_ra="", student_class="",
+                                   class_id=None):
     out_dir = exam_storage_dir(exam.id, create=True)
     booklet_path = str(out_dir / f"booklet_exam{exam.id}_student{student_id}.pdf")
     omr_path     = str(out_dir / f"omr_exam{exam.id}_student{student_id}_V1.pdf")
-    questions    = _questions_from_exam(db, exam)
+    questions    = _questions_from_exam(db, exam, class_id=class_id)
     n_q          = len(questions)
     _build_booklet(exam=exam, questions=questions, output_path=booklet_path,
                    student_name=student_name, student_id=student_id,
@@ -738,6 +744,7 @@ def generate_exam_pdfs_for_class(db, exam, class_id, logo_path=None):
         results.append(generate_exam_pdfs_for_student(
             db=db, exam=exam, student_id=student.id, logo_path=logo_path,
             student_name=student.name or "", student_ra=ra, student_class=class_name,
+            class_id=class_id,
         ))
     return {"class_id": class_id, "students_count": len(students), "results": results, "generated": True}
 
@@ -792,6 +799,7 @@ def generate_batch_for_class(db, exam, class_id, batch_type: str) -> str:
             generate_exam_pdfs_for_student(
                 db=db, exam=exam, student_id=student.id,
                 student_name=student.name or "", student_ra=ra, student_class=class_label,
+                class_id=class_id,
             )
 
     if batch_type == "booklets":

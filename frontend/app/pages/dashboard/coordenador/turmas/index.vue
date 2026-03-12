@@ -1,4 +1,4 @@
-<!-- pages/dashboard/coordenador/turmas.vue -->
+<!-- pages/dashboard/coordenador/turmas/index.vue -->
 <template>
   <div class="space-y-5">
 
@@ -58,24 +58,43 @@
           <span class="text-[11px] font-semibold text-gray-300">{{ classesPorNivel.medio.length }} turmas</span>
         </div>
         <div class="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          <NuxtLink
+          <div
             v-for="(cls, idx) in classesPorNivel.medio" :key="cls.id"
-            :to="`/dashboard/coordenador/turmas/${cls.id}`"
-            class="group bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 hover:border-blue-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-up"
+            class="group relative bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 hover:border-blue-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-up"
             :style="`animation-delay:${80 + idx*30}ms`">
-            <div class="flex items-center justify-between">
+
+            <!-- Botões de ação — aparecem no hover -->
+            <div class="absolute top-2.5 right-2.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 z-10">
+              <button
+                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-violet-50 hover:border-violet-200 transition-all"
+                title="Clonar disciplinas para outras turmas"
+                @click.prevent="openClone(cls)">
+                <Icon name="lucide:copy" class="w-3.5 h-3.5 text-violet-500" />
+              </button>
+              <button
+                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-all"
+                title="Excluir turma"
+                @click.prevent="askDelete(cls)">
+                <Icon name="lucide:trash-2" class="w-3.5 h-3.5 text-red-400" />
+              </button>
+            </div>
+
+            <!-- Card clicável -->
+            <NuxtLink :to="`/dashboard/coordenador/turmas/${cls.id}`" class="absolute inset-0 rounded-2xl z-0" />
+
+            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
               <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow-sm"
                 :class="coresMedio[idx % coresMedio.length]">
                 {{ cls.name }}
               </div>
               <Icon name="lucide:arrow-right" class="w-3.5 h-3.5 text-gray-200 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
             </div>
-            <div>
+            <div class="relative z-[1] pointer-events-none">
               <p class="text-sm font-black text-gray-900 group-hover:text-blue-600 transition-colors leading-none">{{ cls.name }}</p>
               <p class="text-[10px] text-gray-400 mt-0.5">Ensino Médio</p>
             </div>
             <div class="h-px bg-gray-50" />
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
               <div class="flex items-center gap-1">
                 <Icon name="lucide:graduation-cap" class="w-3 h-3 text-gray-300" />
                 <span class="text-xs font-black text-gray-700 tabular-nums">
@@ -84,11 +103,13 @@
                 </span>
               </div>
               <div class="flex items-center gap-1">
-                <Icon name="lucide:file-text" class="w-3 h-3 text-gray-300" />
-                <span class="text-xs font-black text-gray-700 tabular-nums">{{ examsDaTurma(cls.id) }}</span>
+                <Icon name="lucide:book-open" class="w-3 h-3 text-gray-300" />
+                <span class="text-xs font-black text-gray-700 tabular-nums">
+                  {{ disciplineCount[cls.id] ?? '—' }}
+                </span>
               </div>
             </div>
-          </NuxtLink>
+          </div>
         </div>
       </div>
 
@@ -103,24 +124,41 @@
           <span class="text-[11px] font-semibold text-gray-300">{{ classesPorNivel.fundamental.length }} turmas</span>
         </div>
         <div class="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          <NuxtLink
+          <div
             v-for="(cls, idx) in classesPorNivel.fundamental" :key="cls.id"
-            :to="`/dashboard/coordenador/turmas/${cls.id}`"
-            class="group bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-up"
+            class="group relative bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-up"
             :style="`animation-delay:${140 + idx*30}ms`">
-            <div class="flex items-center justify-between">
+
+            <div class="absolute top-2.5 right-2.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 z-10">
+              <button
+                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-violet-50 hover:border-violet-200 transition-all"
+                title="Clonar disciplinas para outras turmas"
+                @click.prevent="openClone(cls)">
+                <Icon name="lucide:copy" class="w-3.5 h-3.5 text-violet-500" />
+              </button>
+              <button
+                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-all"
+                title="Excluir turma"
+                @click.prevent="askDelete(cls)">
+                <Icon name="lucide:trash-2" class="w-3.5 h-3.5 text-red-400" />
+              </button>
+            </div>
+
+            <NuxtLink :to="`/dashboard/coordenador/turmas/${cls.id}`" class="absolute inset-0 rounded-2xl z-0" />
+
+            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
               <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow-sm"
                 :class="coresFund[idx % coresFund.length]">
                 {{ cls.name }}
               </div>
               <Icon name="lucide:arrow-right" class="w-3.5 h-3.5 text-gray-200 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
             </div>
-            <div>
+            <div class="relative z-[1] pointer-events-none">
               <p class="text-sm font-black text-gray-900 group-hover:text-emerald-600 transition-colors leading-none">{{ cls.name }}</p>
               <p class="text-[10px] text-gray-400 mt-0.5">Ens. Fundamental</p>
             </div>
             <div class="h-px bg-gray-50" />
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
               <div class="flex items-center gap-1">
                 <Icon name="lucide:graduation-cap" class="w-3 h-3 text-gray-300" />
                 <span class="text-xs font-black text-gray-700 tabular-nums">
@@ -129,17 +167,215 @@
                 </span>
               </div>
               <div class="flex items-center gap-1">
-                <Icon name="lucide:file-text" class="w-3 h-3 text-gray-300" />
-                <span class="text-xs font-black text-gray-700 tabular-nums">{{ examsDaTurma(cls.id) }}</span>
+                <Icon name="lucide:book-open" class="w-3 h-3 text-gray-300" />
+                <span class="text-xs font-black text-gray-700 tabular-nums">
+                  {{ disciplineCount[cls.id] ?? '—' }}
+                </span>
               </div>
             </div>
-          </NuxtLink>
+          </div>
         </div>
       </div>
 
     </div>
 
-    <!-- ── Modal nova turma ── -->
+    <!-- ── Modal Clone de Disciplinas ───────────────────────────────────────── -->
+    <Transition name="modal">
+      <div v-if="showCloneModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeClone" />
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-modal-in flex flex-col max-h-[90vh]">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-50 flex-shrink-0">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+                <Icon name="lucide:copy" class="w-5 h-5 text-violet-500" />
+              </div>
+              <div>
+                <h3 class="text-base font-black text-gray-900">Clonar grade curricular</h3>
+                <p class="text-xs text-gray-400 mt-0.5">Copiar disciplinas de <span class="font-bold text-violet-600">{{ cloneSource?.name }}</span> para outras turmas</p>
+              </div>
+            </div>
+            <button class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors" @click="closeClone">
+              <Icon name="lucide:x" class="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+
+          <!-- Info da origem -->
+          <div class="px-6 py-3 bg-violet-50/60 border-b border-violet-100 flex-shrink-0">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <Icon name="lucide:book-open" class="w-3.5 h-3.5 text-violet-500" />
+                <span class="text-xs font-bold text-violet-700">
+                  {{ cloneSourceDiscs.length }} disciplina{{ cloneSourceDiscs.length !== 1 ? 's' : '' }} serão copiadas
+                </span>
+              </div>
+              <div v-if="cloneSourceDiscs.length > 0" class="flex flex-wrap gap-1 max-w-xs justify-end">
+                <span v-for="d in cloneSourceDiscs.slice(0, 4)" :key="d.id"
+                  class="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-md">
+                  {{ d.discipline_name }}
+                </span>
+                <span v-if="cloneSourceDiscs.length > 4"
+                  class="text-[10px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-md">
+                  +{{ cloneSourceDiscs.length - 4 }} mais
+                </span>
+              </div>
+              <span v-else class="text-xs text-amber-600 font-bold">⚠ Turma sem disciplinas</span>
+            </div>
+          </div>
+
+          <!-- Selecionar destinos -->
+          <div class="px-6 py-4 flex-1 overflow-y-auto">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-[11px] font-black text-gray-500 uppercase tracking-wider">Selecionar turmas de destino</p>
+              <div class="flex gap-2">
+                <button class="text-[11px] font-bold text-violet-600 hover:underline" @click="selectAllTargets">Todas</button>
+                <span class="text-gray-200">|</span>
+                <button class="text-[11px] font-bold text-gray-400 hover:underline" @click="cloneTargets = []">Nenhuma</button>
+              </div>
+            </div>
+
+            <!-- Médio -->
+            <div v-if="cloneTargetOptions.medio.length" class="mb-4">
+              <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">Ensino Médio</p>
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  v-for="cls in cloneTargetOptions.medio" :key="cls.id"
+                  class="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all duration-150"
+                  :class="cloneTargets.includes(cls.id)
+                    ? 'border-violet-400 bg-violet-50 text-violet-900'
+                    : 'border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-200'"
+                  @click="toggleTarget(cls.id)">
+                  <div class="w-2 h-2 rounded-full flex-shrink-0 transition-all"
+                    :class="cloneTargets.includes(cls.id) ? 'bg-violet-500' : 'bg-gray-200'" />
+                  <span class="text-xs font-black">{{ cls.name }}</span>
+                  <Icon v-if="cloneTargets.includes(cls.id)" name="lucide:check" class="w-3 h-3 text-violet-500 ml-auto" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Fundamental -->
+            <div v-if="cloneTargetOptions.fundamental.length">
+              <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2">Ensino Fundamental</p>
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  v-for="cls in cloneTargetOptions.fundamental" :key="cls.id"
+                  class="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all duration-150"
+                  :class="cloneTargets.includes(cls.id)
+                    ? 'border-violet-400 bg-violet-50 text-violet-900'
+                    : 'border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-200'"
+                  @click="toggleTarget(cls.id)">
+                  <div class="w-2 h-2 rounded-full flex-shrink-0 transition-all"
+                    :class="cloneTargets.includes(cls.id) ? 'bg-violet-500' : 'bg-gray-200'" />
+                  <span class="text-xs font-black">{{ cls.name }}</span>
+                  <Icon v-if="cloneTargets.includes(cls.id)" name="lucide:check" class="w-3 h-3 text-violet-500 ml-auto" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Opção de sobrescrever -->
+            <div class="mt-4 pt-4 border-t border-gray-100">
+              <button
+                class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl border-2 text-left transition-all duration-150"
+                :class="cloneOverwrite
+                  ? 'border-amber-300 bg-amber-50'
+                  : 'border-gray-100 bg-gray-50 hover:border-gray-200'"
+                @click="cloneOverwrite = !cloneOverwrite">
+                <div class="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                  :class="cloneOverwrite ? 'border-amber-500 bg-amber-500' : 'border-gray-300'">
+                  <Icon v-if="cloneOverwrite" name="lucide:check" class="w-2.5 h-2.5 text-white" />
+                </div>
+                <div>
+                  <p class="text-xs font-bold" :class="cloneOverwrite ? 'text-amber-800' : 'text-gray-700'">Substituir disciplinas existentes</p>
+                  <p class="text-[10px]" :class="cloneOverwrite ? 'text-amber-600' : 'text-gray-400'">Remove as disciplinas atuais das turmas destino antes de clonar</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="px-6 py-4 border-t border-gray-50 flex-shrink-0">
+
+            <!-- Resultado -->
+            <Transition name="slide-down">
+              <div v-if="cloneResult" class="mb-3 px-3 py-2.5 rounded-xl border flex items-start gap-2"
+                :class="cloneResult.error ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'">
+                <Icon :name="cloneResult.error ? 'lucide:circle-x' : 'lucide:check-circle-2'"
+                  class="w-4 h-4 flex-shrink-0 mt-0.5"
+                  :class="cloneResult.error ? 'text-red-400' : 'text-emerald-500'" />
+                <p class="text-xs font-medium" :class="cloneResult.error ? 'text-red-600' : 'text-emerald-700'">
+                  {{ cloneResult.message }}
+                </p>
+              </div>
+            </Transition>
+
+            <div class="flex gap-2">
+              <button
+                class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all"
+                @click="closeClone">Cancelar</button>
+              <button
+                :disabled="cloneTargets.length === 0 || cloneSourceDiscs.length === 0 || cloning"
+                class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                :class="cloneTargets.length === 0 || cloneSourceDiscs.length === 0 || cloning
+                  ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                  : 'bg-violet-600 hover:bg-violet-700 text-white active:scale-95'"
+                @click="executeClone">
+                <svg v-if="cloning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                <Icon v-else name="lucide:copy" class="w-4 h-4" />
+                {{ cloning ? 'Clonando...' : `Clonar para ${cloneTargets.length} turma${cloneTargets.length !== 1 ? 's' : ''}` }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Modal excluir turma ──────────────────────────────────────────────── -->
+    <Transition name="modal">
+      <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showDeleteModal = false" />
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+              <Icon name="lucide:trash-2" class="w-5 h-5 text-red-500" />
+            </div>
+            <div>
+              <h3 class="text-base font-black text-gray-900">Excluir turma</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Esta ação não pode ser desfeita</p>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600 leading-relaxed mb-4">
+            Tem certeza que deseja excluir a turma
+            <span class="font-black text-gray-900">{{ deleteTarget?.name }}</span>?
+          </p>
+          <div v-if="deleteError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl mb-4">
+            <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
+            <p class="text-xs text-red-500 font-medium">{{ deleteError }}</p>
+          </div>
+          <div class="flex gap-2">
+            <button
+              class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all"
+              @click="showDeleteModal = false">Cancelar</button>
+            <button
+              :disabled="deleting"
+              class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+              :class="deleting ? 'bg-red-200 text-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white active:scale-95'"
+              @click="confirmDelete">
+              <svg v-if="deleting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              {{ deleting ? 'Excluindo...' : 'Sim, excluir' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Modal nova turma ─────────────────────────────────────────────────── -->
     <Transition name="modal">
       <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="closeModal" />
@@ -155,8 +391,6 @@
           </div>
 
           <div class="space-y-4">
-
-            <!-- Nível -->
             <div>
               <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Nível</label>
               <div class="grid grid-cols-2 gap-2">
@@ -172,7 +406,6 @@
               </div>
             </div>
 
-            <!-- Série / Ano -->
             <Transition name="slide-down" mode="out-in">
               <div v-if="novoForm.nivel" :key="novoForm.nivel">
                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
@@ -192,7 +425,6 @@
               </div>
             </Transition>
 
-            <!-- Seção -->
             <Transition name="slide-down" mode="out-in">
               <div v-if="novoForm.grade_id" key="section">
                 <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Seção</label>
@@ -210,7 +442,6 @@
               </div>
             </Transition>
 
-            <!-- Preview -->
             <Transition name="slide-down">
               <div v-if="previewNome"
                 class="flex items-center gap-3 px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100">
@@ -225,7 +456,6 @@
               </div>
             </Transition>
 
-            <!-- Erro -->
             <div v-if="modalError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl">
               <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
               <p class="text-xs text-red-500 font-medium">{{ modalError }}</p>
@@ -249,7 +479,7 @@
       </div>
     </Transition>
 
-    <!-- ── Modal importar CSV ── -->
+    <!-- ── Modal importar CSV ───────────────────────────────────────────────── -->
     <Transition name="modal">
       <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="closeImport" />
@@ -279,7 +509,6 @@
               </select>
             </div>
 
-            <!-- Drop zone -->
             <div>
               <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Arquivo CSV</label>
               <div
@@ -313,14 +542,12 @@
               </div>
             </div>
 
-            <!-- Formato -->
             <div class="px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100">
               <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Formato esperado (SEDUC-SP)</p>
               <p class="text-[11px] text-gray-500 mb-1">Separador <code class="bg-gray-200 px-1 rounded">;</code> · apenas alunos <strong>Ativos</strong></p>
               <code class="text-[10px] text-gray-400 font-mono">Nº de chamada;Nome do Aluno;RA;Dig. RA;...;Situação do Aluno</code>
             </div>
 
-            <!-- Resultado -->
             <div v-if="importResult"
               class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border"
               :class="importResult.error ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'">
@@ -357,14 +584,14 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard' })
 
-const { get, post, upload } = useApi()
+const { get, post, delete: del } = useApi()
 
 const classes  = ref<any[]>([])
 const grades   = ref<any[]>([])
 const sections = ref<any[]>([])
-const exams    = ref<any[]>([])
 const students        = ref<Record<number, any[]>>({})
 const loadingStudents = ref<Record<number, boolean>>({})
+const disciplineCount = ref<Record<number, number>>({})
 const loading  = ref(true)
 
 // Modal nova turma
@@ -382,6 +609,21 @@ const importResult    = ref<{ error: boolean; message: string } | null>(null)
 const importForm      = reactive({ class_id: '' as any })
 const csvInput        = ref<HTMLInputElement>()
 
+// Modal excluir
+const showDeleteModal = ref(false)
+const deleteTarget    = ref<any>(null)
+const deleting        = ref(false)
+const deleteError     = ref('')
+
+// Modal clone
+const showCloneModal   = ref(false)
+const cloneSource      = ref<any>(null)
+const cloneSourceDiscs = ref<any[]>([])
+const cloneTargets     = ref<number[]>([])
+const cloneOverwrite   = ref(false)
+const cloning          = ref(false)
+const cloneResult      = ref<{ error: boolean; message: string } | null>(null)
+
 const niveis = [
   { value: 'medio',       label: 'Ensino Médio' },
   { value: 'fundamental', label: 'Fundamental' },
@@ -390,7 +632,6 @@ const niveis = [
 const coresMedio = ['bg-blue-500', 'bg-violet-500', 'bg-indigo-500', 'bg-sky-500', 'bg-purple-500']
 const coresFund  = ['bg-emerald-500', 'bg-teal-500', 'bg-green-500', 'bg-cyan-500', 'bg-lime-600']
 
-// Agrupa turmas por nível — usa o campo grade.level se disponível, senão deduz pelo nome
 const classesPorNivel = computed(() => {
   const medio: any[]       = []
   const fundamental: any[] = []
@@ -399,9 +640,16 @@ const classesPorNivel = computed(() => {
     if (level === 'fundamental') fundamental.push(cls)
     else medio.push(cls)
   }
-  // Ordena: médio por série (1ª→3ª) e seção; fundamental por ano (6º→9º) e seção
   medio.sort((a, b) => a.name.localeCompare(b.name))
   fundamental.sort((a, b) => a.name.localeCompare(b.name))
+  return { medio, fundamental }
+})
+
+// Turmas disponíveis como destino do clone (exclui a origem)
+const cloneTargetOptions = computed(() => {
+  const srcId = cloneSource.value?.id
+  const medio       = classesPorNivel.value.medio.filter(c => c.id !== srcId)
+  const fundamental = classesPorNivel.value.fundamental.filter(c => c.id !== srcId)
   return { medio, fundamental }
 })
 
@@ -423,10 +671,6 @@ function selectNivel(nivel: string) {
   novoForm.nivel = nivel as any
   novoForm.grade_id = null
   novoForm.section_id = null
-}
-
-function examsDaTurma(classId: number) {
-  return exams.value.filter(e => e.class_ids?.includes(classId) || e.classes?.includes(classId)).length
 }
 
 function closeModal() {
@@ -456,6 +700,97 @@ function onDrop(e: DragEvent) {
   if (file?.name.endsWith('.csv')) { csvFile.value = file; importResult.value = null }
 }
 
+// ── Clone ──────────────────────────────────────────────────────────────────
+
+async function openClone(cls: any) {
+  cloneSource.value = cls
+  cloneTargets.value = []
+  cloneOverwrite.value = false
+  cloneResult.value = null
+  showCloneModal.value = true
+  // Carregar disciplinas da turma origem
+  try {
+    cloneSourceDiscs.value = await get<any[]>(`/school/classes/${cls.id}/disciplines`)
+  } catch {
+    cloneSourceDiscs.value = []
+  }
+}
+
+function closeClone() {
+  showCloneModal.value = false
+  cloneSource.value = null
+  cloneSourceDiscs.value = []
+  cloneTargets.value = []
+  cloneResult.value = null
+}
+
+function toggleTarget(id: number) {
+  const idx = cloneTargets.value.indexOf(id)
+  if (idx === -1) cloneTargets.value.push(id)
+  else cloneTargets.value.splice(idx, 1)
+}
+
+function selectAllTargets() {
+  const allIds = [
+    ...cloneTargetOptions.value.medio,
+    ...cloneTargetOptions.value.fundamental,
+  ].map(c => c.id)
+  cloneTargets.value = allIds
+}
+
+async function executeClone() {
+  if (!cloneSource.value || cloneTargets.value.length === 0) return
+  cloning.value = true
+  cloneResult.value = null
+  try {
+    const res = await post<any>(`/school/classes/${cloneSource.value.id}/clone-disciplines`, {
+      source_class_id: cloneSource.value.id,
+      target_class_ids: cloneTargets.value,
+      overwrite: cloneOverwrite.value,
+    })
+    const total = Object.values(res.results as Record<string, any>).reduce((s: number, r: any) => s + r.added, 0)
+    cloneResult.value = {
+      error: false,
+      message: `✓ ${res.disciplines_count} disciplinas copiadas para ${cloneTargets.value.length} turma${cloneTargets.value.length !== 1 ? 's' : ''} (${total} vínculos criados).`
+    }
+    // Atualizar contagem de disciplinas nos cards
+    for (const targetId of cloneTargets.value) {
+      disciplineCount.value[targetId] = res.disciplines_count
+    }
+    cloneTargets.value = []
+  } catch (e: any) {
+    cloneResult.value = { error: true, message: e?.message ?? 'Erro ao clonar disciplinas.' }
+  } finally {
+    cloning.value = false
+  }
+}
+
+// ── Delete ─────────────────────────────────────────────────────────────────
+
+function askDelete(cls: any) {
+  deleteTarget.value = cls
+  deleteError.value = ''
+  showDeleteModal.value = true
+}
+
+async function confirmDelete() {
+  if (!deleteTarget.value) return
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await del(`/school/classes/${deleteTarget.value.id}`)
+    classes.value = classes.value.filter(c => c.id !== deleteTarget.value.id)
+    showDeleteModal.value = false
+    deleteTarget.value = null
+  } catch (e: any) {
+    deleteError.value = e?.message ?? 'Erro ao excluir turma.'
+  } finally {
+    deleting.value = false
+  }
+}
+
+// ── CRUD turma / CSV ────────────────────────────────────────────────────────
+
 async function createClass() {
   if (!novoForm.grade_id || !novoForm.section_id) return
   saving.value = true
@@ -466,6 +801,7 @@ async function createClass() {
       section_id: novoForm.section_id,
     })
     classes.value.push(created)
+    disciplineCount.value[created.id] = 0
     closeModal()
   } catch (e: any) {
     modalError.value = e.message ?? 'Erro ao criar turma.'
@@ -481,6 +817,7 @@ async function importCsv() {
   try {
     const fd = new FormData()
     fd.append('file', csvFile.value)
+    const { upload } = useApi()
     const res = await upload<any>(
       `/school/students/import?class_id=${importForm.class_id}&dry_run=false`,
       fd
@@ -499,19 +836,20 @@ async function importCsv() {
   }
 }
 
+// ── Mount ───────────────────────────────────────────────────────────────────
+
 onMounted(async () => {
-  const [classList, gradeList, sectionList, examList] = await Promise.allSettled([
+  const [classList, gradeList, sectionList] = await Promise.allSettled([
     get<any[]>('/school/classes'),
     get<any[]>('/school/grades'),
     get<any[]>('/school/sections'),
-    get<any[]>('/exams/'),
   ])
   if (classList.status === 'fulfilled')   classes.value  = classList.value
   if (gradeList.status === 'fulfilled')   grades.value   = gradeList.value
   if (sectionList.status === 'fulfilled') sections.value = sectionList.value
-  if (examList.status === 'fulfilled')    exams.value    = examList.value
   loading.value = false
 
+  // Carregar alunos e contagem de disciplinas em paralelo
   classes.value.forEach(async cls => {
     loadingStudents.value[cls.id] = true
     try {
@@ -520,6 +858,13 @@ onMounted(async () => {
       students.value[cls.id] = []
     } finally {
       loadingStudents.value[cls.id] = false
+    }
+    // Carregar contagem de disciplinas
+    try {
+      const discs = await get<any[]>(`/school/classes/${cls.id}/disciplines`)
+      disciplineCount.value[cls.id] = discs.length
+    } catch {
+      disciplineCount.value[cls.id] = 0
     }
   })
 })

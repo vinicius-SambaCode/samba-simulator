@@ -54,19 +54,23 @@ def _assert_collecting(exam):
 
 
 def _get_quota_info(db, exam_id, discipline_id, class_id, author_user_id):
-    """Retorna (quota, já_enviadas). quota=0 significa sem limite configurado."""
-    from app.models.exam import ExamDisciplineQuota, ExamTeacherProgress
+    """Retorna (quota, já_enviadas). quota=0 significa sem limite configurado.
+    Conta questões do professor para a disciplina em QUALQUER turma do exame,
+    pois o conjunto de questões é compartilhado entre turmas."""
+    from app.models.exam import ExamDisciplineQuota, Question
     quota_row = db.query(ExamDisciplineQuota).filter_by(
         exam_id=exam_id, discipline_id=discipline_id
     ).first()
     quota = quota_row.quota if quota_row else 0
     if quota == 0:
         return 0, 0
-    progress = db.query(ExamTeacherProgress).filter_by(
-        exam_id=exam_id, teacher_user_id=author_user_id,
-        discipline_id=discipline_id, class_id=class_id,
-    ).first()
-    submitted = progress.submitted if progress else 0
+    # Conta todas as questões do professor para esta disciplina no exame,
+    # independente da turma — evita que o mesmo conteúdo seja enviado duplicado
+    submitted = db.query(Question).filter_by(
+        exam_id=exam_id,
+        discipline_id=discipline_id,
+        author_user_id=author_user_id,
+    ).filter(Question.state.in_(["SUBMITTED", "APPROVED", "submitted", "approved"])).count()
     return quota, submitted
 
 

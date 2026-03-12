@@ -151,9 +151,13 @@ async function submit() {
       options_count: form.options_count,
       answer_source: form.answer_source,
     })
-    navigateTo(`/dashboard/coordenador/simulados/${created.id}`)
+    // Garantia: só navega se o backend retornou um ID válido
+    if (!created?.id || typeof created.id !== 'number') {
+      throw new Error('Resposta inválida do servidor. Tente novamente.')
+    }
+    await navigateTo(`/dashboard/coordenador/simulados/${created.id}`)
   } catch (e: any) {
-    errorMsg.value = e.message ?? 'Erro ao criar simulado.'
+    errorMsg.value = e?.message ?? e?.data?.detail ?? 'Erro ao criar simulado. Verifique a conexão.'
   } finally {
     saving.value = false
   }

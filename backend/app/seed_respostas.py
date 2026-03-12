@@ -19,6 +19,9 @@ USO (dentro do container do backend):
 
 import argparse, os, random, sys
 from pathlib import Path
+from datetime import datetime, timedelta
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 # Carrega .env automaticamente se existir na mesma pasta
 _env = Path(__file__).parent / ".env"
@@ -28,9 +31,6 @@ if _env.exists():
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
-from datetime import datetime, timedelta
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://samba:samba@db:5432/samba_simulator")
 engine = create_engine(DB_URL, future=True)

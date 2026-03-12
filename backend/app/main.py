@@ -77,13 +77,20 @@ def _normalize_origins(raw: str | None) -> List[str]:
     """Converte string CSV de origens em lista, com fallback para localhost."""
     if not raw:
         return [
+            "http://localhost",
             "http://localhost:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1",
             "http://127.0.0.1:3000",
+            "http://127.0.0.1:8080",
         ]
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
-allowed_origins = _normalize_origins(os.getenv("CORS_ORIGINS"))
+# Suporta tanto CORS_ORIGINS quanto BACKEND_CORS_ORIGINS (compatibilidade)
+allowed_origins = _normalize_origins(
+    os.getenv("CORS_ORIGINS") or os.getenv("BACKEND_CORS_ORIGINS")
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -257,7 +264,6 @@ _routers = [
     "app.routes.discipline",
     "app.routes.grade",
     "app.routes.classes",
-    "app.routes.class_disciplines",
     "app.routes.exam",
     "app.routes.students",
     "app.routes.students_import",

@@ -94,6 +94,133 @@ def delete_class(class_id: int, db: Session = Depends(get_db), user: User = Depe
     return None
 
 
+# ------------ Class Disciplines (grade curricular) --------------------------
+
+@router.get("/classes/{class_id}/disciplines", dependencies=[Depends(require_role("COORDINATOR", "ADMIN", "TEACHER"))])
+def list_class_disciplines(class_id: int, db: Session = Depends(get_db)):
+    """Lista as disciplinas vinculadas a uma turma (grade curricular)."""
+    from sqlalchemy import text
+    rows = db.execute(
+        text("SELECT id, class_id, discipline_id FROM class_disciplines WHERE class_id = :cid ORDER BY id"),
+        {"cid": class_id}
+    ).fetchall()
+    result = []
+    for row in rows:
+        disc = db.get(Discipline, row.discipline_id)
+        result.append({
+            "id": row.id,
+            "class_id": row.class_id,
+            "discipline_id": row.discipline_id,
+            "discipline_name": disc.name if disc else f"Disc #{row.discipline_id}",
+        })
+    return result
+
+
+@router.post("/classes/{class_id}/disciplines", dependencies=[Depends(require_role("COORDINATOR", "ADMIN"))])
+def add_class_discipline(class_id: int, data: dict, db: Session = Depends(get_db)):
+    """Vincula uma disciplina a uma turma."""
+    from sqlalchemy import text
+    disc_id = data.get("discipline_id")
+    if not disc_id:
+        raise HTTPException(400, "discipline_id é obrigatório.")
+    # Verificar se já existe
+    existing = db.execute(
+        text("SELECT id FROM class_disciplines WHERE class_id = :cid AND discipline_id = :did"),
+        {"cid": class_id, "did": disc_id}
+    ).fetchone()
+    if existing:
+        raise HTTPException(400, "Disciplina já vinculada a esta turma.")
+    result = db.execute(
+        text("INSERT INTO class_disciplines (class_id, discipline_id) VALUES (:cid, :did) RETURNING id"),
+        {"cid": class_id, "did": disc_id}
+    )
+    db.commit()
+    new_id = result.fetchone()[0]
+    disc = db.get(Discipline, disc_id)
+    return {
+        "id": new_id,
+        "class_id": class_id,
+        "discipline_id": disc_id,
+        "discipline_name": disc.name if disc else f"Disc #{disc_id}",
+    }
+
+
+@router.delete("/classes/{class_id}/disciplines/{disc_id}", status_code=204, dependencies=[Depends(require_role("COORDINATOR", "ADMIN"))])
+def remove_class_discipline(class_id: int, disc_id: int, db: Session = Depends(get_db)):
+    """Remove vínculo de disciplina de uma turma."""
+    from sqlalchemy import text
+    db.execute(
+        text("DELETE FROM class_disciplines WHERE class_id = :cid AND discipline_id = :did"),
+        {"cid": class_id, "did": disc_id}
+    )
+    db.commit()
+    return None
+
+
+@router.post("/classes/{class_id}/clone-disciplines", dependencies=[Depends(require_role("COORDINATOR", "ADMIN"))])
+def clone_disciplines(class_id: int, data: dict, db: Session = Depends(get_db)):
+    """
+    Clona todas as disciplinas de uma turma de origem para uma ou mais turmas de destino.
+    Body: { "source_class_id": int, "target_class_ids": [int, ...], "overwrite": bool }
+    """
+    from sqlalchemy import text
+
+    source_id = data.get("source_class_id")
+    target_ids = data.get("target_class_ids", [])
+    overwrite = data.get("overwrite", False)
+
+    if not source_id:
+        raise HTTPException(400, "source_class_id é obrigatório.")
+    if not target_ids:
+        raise HTTPException(400, "target_class_ids não pode ser vazio.")
+
+    # Buscar disciplinas da turma origem
+    source_rows = db.execute(
+        text("SELECT discipline_id FROM class_disciplines WHERE class_id = :cid"),
+        {"cid": source_id}
+    ).fetchall()
+    disc_ids = [r.discipline_id for r in source_rows]
+
+    if not disc_ids:
+        raise HTTPException(400, "A turma de origem não tem disciplinas vinculadas.")
+
+    summary = {}
+    for target_id in target_ids:
+        if target_id == source_id:
+            continue
+        added = 0
+        skipped = 0
+        if overwrite:
+            # Remove todos os vínculos existentes antes de clonar
+            db.execute(
+                text("DELETE FROM class_disciplines WHERE class_id = :cid"),
+                {"cid": target_id}
+            )
+        for disc_id in disc_ids:
+            existing = db.execute(
+                text("SELECT id FROM class_disciplines WHERE class_id = :cid AND discipline_id = :did"),
+                {"cid": target_id, "did": disc_id}
+            ).fetchone()
+            if existing:
+                skipped += 1
+            else:
+                db.execute(
+                    text("INSERT INTO class_disciplines (class_id, discipline_id) VALUES (:cid, :did)"),
+                    {"cid": target_id, "did": disc_id}
+                )
+                added += 1
+        summary[target_id] = {"added": added, "skipped": skipped}
+
+    db.commit()
+    return {
+        "source_class_id": source_id,
+        "disciplines_count": len(disc_ids),
+        "results": summary,
+    }
+
+
+# ------------ TeacherClassSubject ------------
+
 @router.get("/teachers", dependencies=[Depends(require_role("COORDINATOR", "ADMIN"))])
 def list_teachers(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.models.base_models import Role, user_roles
@@ -107,8 +234,6 @@ def list_teachers(db: Session = Depends(get_db), user: User = Depends(get_curren
     )
     return [{"id": t.id, "name": t.name, "email": t.email} for t in teachers]
 
-
-# ------------ TeacherClassSubject ------------
 
 @router.get("/my-subjects")
 def list_my_subjects(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
