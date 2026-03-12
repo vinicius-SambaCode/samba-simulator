@@ -13,17 +13,16 @@ export interface User {
 
 function mapRole(backendRole: string): UserRole {
   const map: Record<string, UserRole> = {
-    ADMIN:       'root',
-    admin:       'root',
-    COORDINATOR: 'coordenador',
-    coordinator: 'coordenador',
-    TEACHER:     'professor',
-    teacher:     'professor',
+    ADMIN: 'root', admin: 'root',
+    COORDINATOR: 'coordenador', coordinator: 'coordenador',
+    TEACHER: 'professor', teacher: 'professor',
   }
   return map[backendRole] ?? 'professor'
 }
 
 export function useAuth() {
+  const config      = useRuntimeConfig()
+  const BASE_URL    = config.public.apiBase as string
   const currentUser = useState<User | null>('current_user', () => null)
   const { get, accessToken } = useApi()
 
@@ -33,9 +32,7 @@ export function useAuth() {
     professor:   '/dashboard/professor',
   }
 
-  function getDashboardRoute(role: UserRole) {
-    return roleRoutes[role]
-  }
+  function getDashboardRoute(role: UserRole) { return roleRoutes[role] }
 
   async function fetchMe() {
     try {
@@ -43,15 +40,8 @@ export function useAuth() {
       const mappedRoles = me.roles.map(mapRole)
       const priority: UserRole[] = ['root', 'coordenador', 'professor']
       const primaryRole = priority.find(r => mappedRoles.includes(r)) ?? 'professor'
-      currentUser.value = {
-        id:    me.id,
-        name:  me.name,
-        email: me.email,
-        role:  primaryRole,
-        roles: mappedRoles,
-      }
+      currentUser.value = { id: me.id, name: me.name, email: me.email, role: primaryRole, roles: mappedRoles }
     } catch {
-      // Token inválido ou expirado — limpa tudo
       currentUser.value = null
       accessToken.value = null
     }
@@ -62,19 +52,15 @@ export function useAuth() {
       const formData = new URLSearchParams()
       formData.append('username', email)
       formData.append('password', password)
-
-      const res = await fetch('http://localhost:8000/auth/login', {
+      const res = await fetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         credentials: 'include',
         body: formData.toString(),
       })
-
       if (!res.ok) return false
-
       const data = await res.json()
       accessToken.value = data.access_token
-
       await fetchMe()
       return !!currentUser.value
     } catch {
@@ -84,7 +70,7 @@ export function useAuth() {
 
   async function logout() {
     try {
-      await fetch('http://localhost:8000/auth/logout', {
+      await fetch(`${BASE_URL}/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +80,6 @@ export function useAuth() {
         body: JSON.stringify({ logout_all: false }),
       })
     } catch {}
-
     currentUser.value = null
     accessToken.value = null
     await navigateTo('/login')
@@ -103,9 +88,6 @@ export function useAuth() {
   return {
     user:            readonly(currentUser),
     isAuthenticated: computed(() => !!currentUser.value),
-    login,
-    logout,
-    fetchMe,
-    getDashboardRoute,
+    login, logout, fetchMe, getDashboardRoute,
   }
 }

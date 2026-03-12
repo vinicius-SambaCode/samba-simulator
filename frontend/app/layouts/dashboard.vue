@@ -429,7 +429,8 @@ const roleConfig = computed(() => {
       label: 'Coordenador',
       nav: [
         { to: '/dashboard/coordenador',            icon: 'lucide:layout-dashboard', label: 'Painel' },
-        { to: '/dashboard/coordenador/turmas',      icon: 'lucide:users',            label: 'Turmas' },
+        { to: '/dashboard/coordenador/turmas',       icon: 'lucide:users',            label: 'Turmas' },
+        { to: '/dashboard/coordenador/disciplinas', icon: 'lucide:book-open',        label: 'Disciplinas' },
         { to: '/dashboard/coordenador/simulados',   icon: 'lucide:file-text',        label: 'Simulados' },
         { to: '/dashboard/coordenador/questoes',    icon: 'lucide:help-circle',      label: 'Questões' },
         { to: '/dashboard/coordenador/professores', icon: 'lucide:user-check',       label: 'Professores' },

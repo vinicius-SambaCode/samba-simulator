@@ -2,6 +2,108 @@
 <template>
   <div class="space-y-6">
 
+    <!-- ============================================================ -->
+    <!-- OVERLAY: Progresso de operação longa                         -->
+    <!-- ============================================================ -->
+    <Transition name="overlay">
+      <div v-if="opProgress.active"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+
+          <!-- Barra topo -->
+          <div class="relative h-2 bg-gray-100 overflow-hidden">
+            <div class="absolute inset-y-0 left-0 transition-all duration-500 ease-out"
+              :class="opProgress.color"
+              :style="`width: ${opProgress.percent}%`" />
+          </div>
+
+          <div class="p-8">
+            <!-- Anel SVG + ícone -->
+            <div class="flex justify-center mb-6">
+              <div class="relative w-20 h-20">
+                <svg class="absolute inset-0 w-20 h-20" viewBox="0 0 80 80"
+                  style="transform: rotate(-90deg)">
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="#f3f4f6" stroke-width="4"/>
+                  <circle cx="40" cy="40" r="34" fill="none"
+                    :stroke="opProgress.ringColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                    :stroke-dasharray="`${opProgress.percent * 2.136} 213.6`"
+                    style="transition: stroke-dasharray 0.6s cubic-bezier(0.4,0,0.2,1)"/>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm"
+                    :class="opProgress.iconBg">
+                    <Icon :name="opProgress.icon" class="w-6 h-6" :class="opProgress.iconColor" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Título / etapa -->
+            <div class="text-center mb-6">
+              <h3 class="text-xl font-black text-gray-900 mb-1">{{ opProgress.title }}</h3>
+              <p class="text-sm text-gray-500 min-h-[20px] transition-all duration-300">
+                {{ opProgress.step }}
+              </p>
+            </div>
+
+            <!-- Barra detalhada -->
+            <div class="mb-5">
+              <div class="flex items-center justify-between text-xs font-bold mb-2">
+                <span class="text-gray-500">{{ opProgress.done }} de {{ opProgress.total }}</span>
+                <span class="tabular-nums" :class="opProgress.pctColor">{{ opProgress.percent }}%</span>
+              </div>
+              <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full relative overflow-hidden transition-all duration-500 ease-out"
+                  :class="opProgress.color"
+                  :style="`width: ${opProgress.percent}%`">
+                  <div class="absolute inset-0 animate-shimmer
+                    bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Cronômetro -->
+            <div class="flex items-center justify-between bg-gray-50 rounded-2xl px-5 py-3.5">
+              <div class="flex items-center gap-2.5">
+                <Icon name="lucide:timer" class="w-4 h-4 text-gray-400" />
+                <div>
+                  <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">Decorrido</p>
+                  <p class="text-lg font-black text-gray-800 tabular-nums leading-tight" style="font-variant-numeric: tabular-nums">
+                    {{ opProgress.elapsed }}
+                  </p>
+                </div>
+              </div>
+              <div class="w-px h-9 bg-gray-200" />
+              <div class="flex items-center gap-2.5">
+                <div class="text-right">
+                  <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">Estimativa</p>
+                  <p class="text-lg font-black tabular-nums leading-tight"
+                    :class="opProgress.percent >= 100 ? 'text-emerald-600' : 'text-gray-800'">
+                    {{ opProgress.eta }}
+                  </p>
+                </div>
+                <Icon name="lucide:clock" class="w-4 h-4 text-gray-400" />
+              </div>
+            </div>
+
+            <!-- Concluído -->
+            <Transition name="slide-up">
+              <div v-if="opProgress.percent >= 100"
+                class="mt-4 flex items-center justify-center gap-2 py-3
+                  bg-emerald-50 rounded-2xl border border-emerald-100">
+                <Icon name="lucide:check-circle-2" class="w-5 h-5 text-emerald-500" />
+                <span class="text-sm font-bold text-emerald-700">Concluído!</span>
+              </div>
+            </Transition>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+
+
     <!-- ── BREADCRUMB ── -->
     <div class="animate-fade-in">
       <NuxtLink to="/dashboard/coordenador/simulados"
@@ -72,6 +174,13 @@
               <Icon name="lucide:check-circle-2" class="w-3.5 h-3.5" />
               <span class="hidden sm:inline">{{ exam?.status === 'published' ? 'Publicado' : 'Cadernos gerados' }}</span>
             </span>
+            <button
+              v-if="exam?.status && !['locked','generated','published'].includes(exam.status)"
+              class="flex items-center gap-1.5 px-3 py-2 border border-red-200 hover:border-red-300 hover:bg-red-50 text-red-500 text-xs font-bold rounded-xl transition-all active:scale-95"
+              @click="showDeleteModal = true">
+              <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+              <span class="hidden sm:inline">Excluir</span>
+            </button>
           </div>
         </div>
 
@@ -483,6 +592,50 @@
       </div>
     </Transition>
 
+    <!-- Modal excluir simulado -->
+    <Transition name="modal">
+      <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showDeleteModal = false" />
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+              <Icon name="lucide:trash-2" class="w-5 h-5 text-red-500" />
+            </div>
+            <div>
+              <h3 class="text-base font-black text-gray-900">Excluir simulado</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Esta ação não pode ser desfeita</p>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600 leading-relaxed mb-2">
+            Tem certeza que deseja excluir
+            <span class="font-bold text-gray-900">{{ exam?.title }}</span>?
+          </p>
+          <p class="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-4 flex items-start gap-2">
+            <Icon name="lucide:alert-triangle" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            Todas as questões, vínculos e dados de progresso serão removidos permanentemente.
+          </p>
+          <div v-if="deleteError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl mb-4">
+            <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
+            <p class="text-xs text-red-500 font-medium">{{ deleteError }}</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600"
+              @click="showDeleteModal = false">Cancelar</button>
+            <button :disabled="deleting"
+              class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+              :class="deleting ? 'bg-red-200 text-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white active:scale-95'"
+              @click="deleteExam">
+              <svg v-if="deleting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              {{ deleting ? 'Excluindo...' : 'Sim, excluir' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Modal travar -->
     <Transition name="modal">
       <div v-if="showLockModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -588,7 +741,7 @@ useHead({
 })
 
 const route = useRoute()
-const { get, post, patch, accessToken } = useApi()
+const { get, post, patch, delete: del, accessToken } = useApi()
 const { renderStem, renderOption } = useQuestionRenderer()
 const examId = computed(() => Number(route.params.id))
 
@@ -631,6 +784,10 @@ const editForm = reactive<{
 }>({ stem: '', options: [], correct_label: '' })
 
 // ===== CADERNOS =====
+const showDeleteModal = ref(false)
+const deleting      = ref(false)
+const deleteError   = ref('')
+
 const showGenerateModal = ref(false)
 const generating        = ref(false)
 const generateError     = ref('')
@@ -645,6 +802,61 @@ const pdfLoading = ref<Record<string, boolean>>({})
 
 // loading em lote
 const batchLoading = ref({ booklets: false, answers: false })
+
+// ── Overlay de progresso ─────────────────────────────────────────────────────
+const opProgress = reactive({
+  active: false, title: '', step: '', done: 0, total: 1, percent: 0,
+  elapsed: '0:00', eta: '—',
+  color: 'bg-indigo-500', ringColor: '#6366f1',
+  iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600',
+  icon: 'lucide:book-open', pctColor: 'text-indigo-600',
+})
+let _opTimer: ReturnType<typeof setInterval> | null = null
+let _opStart = 0
+
+function startProgress(opts: {
+  title: string; total: number; icon?: string;
+  color?: string; ringColor?: string; iconBg?: string; iconColor?: string; pctColor?: string
+}) {
+  opProgress.active    = true
+  opProgress.title     = opts.title
+  opProgress.step      = 'Iniciando...'
+  opProgress.done      = 0
+  opProgress.total     = opts.total
+  opProgress.percent   = 0
+  opProgress.elapsed   = '0:00'
+  opProgress.eta       = '—'
+  opProgress.color     = opts.color     ?? 'bg-indigo-500'
+  opProgress.ringColor = opts.ringColor ?? '#6366f1'
+  opProgress.iconBg    = opts.iconBg    ?? 'bg-indigo-50'
+  opProgress.iconColor = opts.iconColor ?? 'text-indigo-600'
+  opProgress.icon      = opts.icon      ?? 'lucide:loader-2'
+  opProgress.pctColor  = opts.pctColor  ?? 'text-indigo-600'
+  _opStart = Date.now()
+  _opTimer = setInterval(() => {
+    const secs = Math.floor((Date.now() - _opStart) / 1000)
+    opProgress.elapsed = `${Math.floor(secs/60)}:${(secs%60).toString().padStart(2,'0')}`
+    if (opProgress.done > 0 && opProgress.percent < 100) {
+      const rate = opProgress.done / ((Date.now() - _opStart) / 1000)
+      const rem  = (opProgress.total - opProgress.done) / rate
+      opProgress.eta = `~${Math.floor(rem/60)}:${Math.floor(rem%60).toString().padStart(2,'0')}`
+    }
+  }, 500)
+}
+function stepProgress(done: number, step: string) {
+  opProgress.done    = done
+  opProgress.percent = Math.round((done / opProgress.total) * 100)
+  opProgress.step    = step
+}
+function endProgress(delay = 1400) {
+  opProgress.percent = 100
+  opProgress.step    = 'Concluído!'
+  opProgress.eta     = '0:00'
+  setTimeout(() => {
+    opProgress.active = false
+    if (_opTimer) { clearInterval(_opTimer); _opTimer = null }
+  }, delay)
+}
 
 // Computed
 const statCards = computed(() => [
@@ -754,14 +966,39 @@ async function saveEdit() {
 async function lockExam() {
   locking.value = true
   lockError.value = ''
+  showLockModal.value = false
+
+  startProgress({
+    title: 'Travando simulado', total: 1,
+    icon: 'lucide:lock', color: 'bg-blue-500', ringColor: '#3b82f6',
+    iconBg: 'bg-blue-50', iconColor: 'text-blue-600', pctColor: 'text-blue-600',
+  })
+  stepProgress(0, 'Validando questões e consolidando gabarito...')
+
   try {
     await post(`/exams/${examId.value}/lock`, {})
+    stepProgress(1, 'Simulado travado com sucesso')
+    endProgress()
     exam.value.status = 'locked'
-    showLockModal.value = false
   } catch (e: any) {
+    opProgress.active = false
+    if (_opTimer) { clearInterval(_opTimer); _opTimer = null }
     lockError.value = e.message ?? 'Erro ao travar simulado.'
+    showLockModal.value = true
   } finally {
     locking.value = false
+  }
+}
+
+async function deleteExam() {
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await del(`/exams/${examId.value}`)
+    await navigateTo('/dashboard/coordenador/simulados')
+  } catch (e: any) {
+    deleteError.value = e?.data?.detail ?? e?.message ?? 'Erro ao excluir simulado.'
+    deleting.value = false
   }
 }
 
@@ -787,12 +1024,29 @@ async function assignClasses() {
 async function generateBooklets() {
   generating.value = true
   generateError.value = ''
+  showGenerateModal.value = false
+
+  const classIds = examClasses.value.map((c: any) => c.class_id)
+  if (!classIds.length) {
+    generateError.value = 'Nenhuma turma vinculada ao simulado.'
+    generating.value = false
+    return
+  }
+
+  startProgress({
+    title: 'Gerando cadernos', total: classIds.length,
+    icon: 'lucide:book-open', color: 'bg-indigo-500', ringColor: '#6366f1',
+    iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', pctColor: 'text-indigo-600',
+  })
+
+  const token = accessToken.value ?? (import.meta.client ? localStorage.getItem('samba_token') : null)
   try {
-    const classIds = examClasses.value.map((c: any) => c.class_id)
-    if (!classIds.length) throw new Error('Nenhuma turma vinculada ao simulado.')
-    const token = accessToken.value ?? (import.meta.client ? localStorage.getItem('samba_token') : null)
-    for (const classId of classIds) {
-      const res = await fetch(`http://localhost:8000/exams/${examId.value}/pdf/generate?class_id=${classId}`, {
+    for (let i = 0; i < classIds.length; i++) {
+      const classId   = classIds[i]
+      const className = examClasses.value.find((c: any) => c.class_id === classId)?.class_name ?? `Turma ${classId}`
+      stepProgress(i, `Gerando PDFs — ${className}`)
+      const apiBase = useRuntimeConfig().public.apiBase
+      const res = await fetch(`${apiBase}/exams/${examId.value}/pdf/generate?class_id=${classId}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
@@ -801,12 +1055,16 @@ async function generateBooklets() {
         const err = await res.json().catch(() => ({ detail: `Erro ${res.status}` }))
         throw new Error(err.detail ?? `Erro ${res.status}`)
       }
+      stepProgress(i + 1, `${className} concluída`)
     }
+    endProgress()
     exam.value.status = 'generated'
-    showGenerateModal.value = false
     if (bookletClassId.value) await loadStudents(bookletClassId.value)
   } catch (e: any) {
+    opProgress.active = false
+    if (_opTimer) { clearInterval(_opTimer); _opTimer = null }
     generateError.value = e.message ?? 'Erro ao gerar cadernos.'
+    showGenerateModal.value = true
   } finally {
     generating.value = false
   }
@@ -954,4 +1212,13 @@ onMounted(async () => {
   font-family: monospace;
   font-size: 0.8em;
 }
+
+/* Overlay de progresso */
+.overlay-enter-active { transition: opacity 0.25s ease }
+.overlay-leave-active { transition: opacity 0.3s ease }
+.overlay-enter-from, .overlay-leave-to { opacity: 0 }
+.slide-up-enter-active { transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1) }
+.slide-up-enter-from { opacity: 0; transform: translateY(8px) }
+@keyframes shimmer { 0% { transform:translateX(-100%) } 100% { transform:translateX(200%) } }
+.animate-shimmer { animation: shimmer 1.8s infinite }
 </style>

@@ -61,6 +61,43 @@
       </div>
     </div>
 
+
+    <!-- Grade Curricular -->
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-fade-up" style="animation-delay:80ms">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+        <div class="flex items-center gap-2">
+          <Icon name="lucide:book-open" class="w-4 h-4 text-violet-400" />
+          <h3 class="text-sm font-bold text-gray-900">Grade curricular</h3>
+          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-600">{{ gradeDiscs.length }}</span>
+        </div>
+        <button
+          class="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 hover:bg-violet-50 px-3 py-1.5 rounded-lg transition-all"
+          @click="showGradeModal = true">
+          <Icon name="lucide:settings-2" class="w-3.5 h-3.5" />
+          Gerenciar grade
+        </button>
+      </div>
+
+      <div v-if="loadingGrade" class="p-4 flex gap-2 flex-wrap">
+        <div v-for="i in 6" :key="i" class="h-8 w-28 bg-gray-50 rounded-full animate-pulse" :style="`animation-delay:${i*40}ms`" />
+      </div>
+
+      <div v-else-if="gradeDiscs.length === 0"
+        class="flex items-center gap-3 px-5 py-4 text-xs text-gray-400">
+        <Icon name="lucide:info" class="w-4 h-4 text-gray-300 flex-shrink-0" />
+        Nenhuma disciplina na grade. Clique em "Gerenciar grade" para configurar.
+      </div>
+
+      <div v-else class="px-5 py-4 flex flex-wrap gap-2">
+        <span
+          v-for="disc in gradeDiscs" :key="disc.id"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-100">
+          <Icon name="lucide:book" class="w-3 h-3" />
+          {{ disc.name }}
+        </span>
+      </div>
+    </div>
+
     <!-- Alunos + Simulados -->
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
@@ -249,13 +286,89 @@
     </Transition>
 
   </div>
+
+    <!-- Modal Grade Curricular -->
+    <Transition name="modal">
+      <div v-if="showGradeModal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="showGradeModal = false">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
+          <div class="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
+            <div class="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+              <Icon name="lucide:book-open" class="w-4 h-4 text-violet-600" />
+            </div>
+            <div class="flex-1">
+              <h3 class="font-black text-gray-900 text-sm">Grade curricular — {{ turma?.name }}</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Selecione as disciplinas desta turma</p>
+            </div>
+            <button class="p-2 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+              @click="showGradeModal = false">
+              <Icon name="lucide:x" class="w-4 h-4" />
+            </button>
+          </div>
+
+          <div class="px-6 py-4">
+            <!-- Busca rápida -->
+            <div class="relative mb-4">
+              <Icon name="lucide:search" class="w-3.5 h-3.5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input v-model="buscaDisc"
+                placeholder="Filtrar disciplinas..."
+                class="w-full pl-8 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 transition-all" />
+            </div>
+
+            <!-- Lista de disciplinas -->
+            <div class="max-h-72 overflow-y-auto space-y-1 pr-1">
+              <label
+                v-for="disc in discsFiltradas" :key="disc.id"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors"
+                :class="selectedDiscIds.has(disc.id) ? 'bg-violet-50 border border-violet-200' : 'hover:bg-gray-50 border border-transparent'">
+                <div class="w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                  :class="selectedDiscIds.has(disc.id) ? 'bg-violet-600 border-violet-600' : 'border-gray-300'">
+                  <Icon v-if="selectedDiscIds.has(disc.id)" name="lucide:check" class="w-3 h-3 text-white" />
+                </div>
+                <span class="text-sm font-medium text-gray-800">{{ disc.name }}</span>
+                <input type="checkbox" class="sr-only"
+                  :checked="selectedDiscIds.has(disc.id)"
+                  @change="toggleDisc(disc.id)" />
+              </label>
+
+              <div v-if="discsFiltradas.length === 0" class="py-6 text-center text-xs text-gray-400">
+                Nenhuma disciplina encontrada
+              </div>
+            </div>
+
+            <p class="text-xs text-gray-400 mt-3">
+              {{ selectedDiscIds.size }} disciplina{{ selectedDiscIds.size !== 1 ? 's' : '' }} selecionada{{ selectedDiscIds.size !== 1 ? 's' : '' }}
+            </p>
+          </div>
+
+          <div class="px-6 pb-5 flex items-center justify-end gap-3">
+            <button class="px-4 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
+              @click="showGradeModal = false">
+              Cancelar
+            </button>
+            <button
+              :disabled="savingGrade"
+              class="flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95"
+              :class="savingGrade ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-700 text-white'"
+              @click="salvarGrade">
+              <Icon v-if="savingGrade" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+              <Icon v-else name="lucide:check" class="w-4 h-4" />
+              {{ savingGrade ? 'Salvando...' : 'Salvar grade' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
 </template>
 
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
-const { get, post, delete: del } = useApi()
+const { get, post, put, delete: del } = useApi()
 
 const classId = computed(() => Number(route.params.id))
 
@@ -273,6 +386,41 @@ const alunoError     = ref('')
 const alunoForm      = reactive({ name: '', ra: '' })
 
 const showDeleteModal = ref(false)
+
+// ── Grade Curricular ──────────────────────────────────────────
+const gradeDiscs      = ref<any[]>([])
+const allDiscs        = ref<any[]>([])
+const loadingGrade    = ref(true)
+const showGradeModal  = ref(false)
+const savingGrade     = ref(false)
+const buscaDisc       = ref('')
+const selectedDiscIds = ref(new Set<number>())
+
+const discsFiltradas = computed(() => {
+  const q = buscaDisc.value.toLowerCase()
+  if (!q) return allDiscs.value
+  return allDiscs.value.filter(d => d.name.toLowerCase().includes(q))
+})
+
+function toggleDisc(id: number) {
+  const s = new Set(selectedDiscIds.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectedDiscIds.value = s
+}
+
+async function salvarGrade() {
+  savingGrade.value = true
+  try {
+    const ids = Array.from(selectedDiscIds.value)
+    const result = await put<any[]>(`/school/classes/${classId.value}/disciplines`, { discipline_ids: ids })
+    gradeDiscs.value = result
+    showGradeModal.value = false
+  } catch (e: any) {
+    alert(e.message ?? 'Erro ao salvar grade')
+  } finally {
+    savingGrade.value = false
+  }
+}
 const deleting        = ref(false)
 const deleteError     = ref('')
 
@@ -375,6 +523,18 @@ onMounted(async () => {
     exams.value = filtered
   }
   loadingExams.value = false
+
+  // Carregar grade curricular e todas disciplinas em paralelo
+  const [gradeResult, allDiscsResult] = await Promise.allSettled([
+    get<any[]>(`/school/classes/${classId.value}/disciplines`),
+    get<any[]>('/disciplines/'),
+  ])
+  if (gradeResult.status === 'fulfilled') {
+    gradeDiscs.value = gradeResult.value
+    selectedDiscIds.value = new Set(gradeResult.value.map((d: any) => d.id))
+  }
+  if (allDiscsResult.status === 'fulfilled') allDiscs.value = allDiscsResult.value
+  loadingGrade.value = false
 })
 </script>
 

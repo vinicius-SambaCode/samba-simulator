@@ -257,6 +257,7 @@ _routers = [
     "app.routes.discipline",
     "app.routes.grade",
     "app.routes.classes",
+    "app.routes.class_disciplines",
     "app.routes.exam",
     "app.routes.students",
     "app.routes.students_import",

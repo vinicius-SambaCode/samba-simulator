@@ -3,92 +3,108 @@
   <div class="max-w-7xl mx-auto space-y-6">
 
     <!-- ===================================================== -->
-    <!-- MODAL: Seleção de turmas                               -->
+    <!-- MODAL: Seleção de disciplina + turmas                  -->
     <!-- ===================================================== -->
     <Transition name="pop">
       <div v-if="showClassSelector"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5">
-          <div class="flex items-center gap-3">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
+          <div class="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
             <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
               <Icon name="lucide:school" class="w-5 h-5 text-blue-600" />
             </div>
             <div class="flex-1">
-              <h3 class="font-bold text-gray-900">Para quais turmas deseja enviar?</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Selecione uma ou mais turmas — questões serão duplicadas para cada uma</p>
+              <h3 class="font-bold text-gray-900">Configurar disciplina e turmas</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Escolha a disciplina e para quais turmas enviar questões</p>
             </div>
-            <button
-              class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
-              title="Fechar"
+            <button class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
               @click="fecharModalTurmas">
               <Icon name="lucide:x" class="w-4 h-4" />
             </button>
           </div>
 
-          <!-- Atalho: todas do mesmo ano -->
-          <button v-if="turmasDoMesmoAno.length > 1"
-            class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all"
-            :class="todasDoAnoSelecionadas
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'"
-            @click="toggleTodasDoAno">
-            <Icon name="lucide:layers" class="w-5 h-5 flex-shrink-0"
-              :class="todasDoAnoSelecionadas ? 'text-blue-600' : 'text-gray-400'" />
-            <div class="text-left flex-1">
-              <p class="text-sm font-semibold" :class="todasDoAnoSelecionadas ? 'text-blue-900' : 'text-gray-700'">
-                Todas as turmas do mesmo ano
-              </p>
-              <p class="text-xs" :class="todasDoAnoSelecionadas ? 'text-blue-500' : 'text-gray-400'">
-                {{ turmasDoMesmoAno.map(t => t.class_name).join(' · ') }}
-              </p>
-            </div>
-            <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all"
-              :class="todasDoAnoSelecionadas ? 'border-blue-500 bg-blue-500' : 'border-gray-300'">
-              <Icon v-if="todasDoAnoSelecionadas" name="lucide:check" class="w-3 h-3 text-white" />
-            </div>
-          </button>
+          <div class="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
 
-          <div class="border-t border-gray-100" />
+            <!-- Step 1: Disciplina -->
+            <div v-if="myDisciplines.length > 1">
+              <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                <Icon name="lucide:book-open" class="w-3 h-3 inline mr-1" />
+                Disciplina
+              </p>
+              <div class="grid grid-cols-1 gap-2">
+                <button v-for="disc in myDisciplines" :key="disc.discipline_id"
+                  class="flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all"
+                  :class="activeDisciplineId === disc.discipline_id
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50/30'"
+                  @click="selectDiscipline(disc.discipline_id)">
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 font-black text-xs"
+                    :class="activeDisciplineId === disc.discipline_id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'">
+                    {{ disc.discipline_name.substring(0,2).toUpperCase() }}
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-sm font-semibold" :class="activeDisciplineId === disc.discipline_id ? 'text-blue-900' : 'text-gray-700'">
+                      {{ disc.discipline_name }}
+                    </p>
+                    <p class="text-xs text-gray-400">{{ disc.classes.length }} turma{{ disc.classes.length > 1 ? 's' : '' }}</p>
+                  </div>
+                  <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                    :class="activeDisciplineId === disc.discipline_id ? 'border-blue-500 bg-blue-500' : 'border-gray-300'">
+                    <Icon v-if="activeDisciplineId === disc.discipline_id" name="lucide:check" class="w-3 h-3 text-white" />
+                  </div>
+                </button>
+              </div>
+              <div class="border-t border-gray-100 mt-4" />
+            </div>
 
-          <!-- Turmas individuais (checkbox) -->
-          <div class="space-y-2">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Ou selecione individualmente</p>
-            <button v-for="a in myAssignments" :key="a.class_id"
-              class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all"
-              :class="selectedClassIds.includes(a.class_id)
-                ? 'border-emerald-400 bg-emerald-50'
-                : 'border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50'"
-              @click="toggleTurma(a.class_id)">
-              <Icon name="lucide:door-open" class="w-4 h-4 flex-shrink-0"
-                :class="selectedClassIds.includes(a.class_id) ? 'text-emerald-600' : 'text-gray-400'" />
-              <div class="text-left flex-1">
-                <p class="text-sm font-semibold"
-                  :class="selectedClassIds.includes(a.class_id) ? 'text-emerald-900' : 'text-gray-700'">
-                  {{ a.class_name }}
+            <!-- Step 2: Turmas da disciplina selecionada -->
+            <div v-if="activeDisciplineClasses.length > 0">
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <Icon name="lucide:door-open" class="w-3 h-3 inline mr-1" />
+                  Turmas
                 </p>
-                <p class="text-xs text-gray-400">{{ a.discipline_name }}</p>
+                <button v-if="activeDisciplineClasses.length > 1"
+                  class="text-xs font-semibold text-blue-500 hover:text-blue-700 transition-colors"
+                  @click="toggleTodasTurmasDisciplina">
+                  {{ todasTurmasSelecionadas ? 'Desmarcar todas' : 'Selecionar todas' }}
+                </button>
               </div>
-              <div class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                :class="selectedClassIds.includes(a.class_id)
-                  ? 'border-emerald-500 bg-emerald-500'
-                  : 'border-gray-300'">
-                <Icon v-if="selectedClassIds.includes(a.class_id)" name="lucide:check" class="w-3 h-3 text-white" />
+              <div class="grid grid-cols-2 gap-2">
+                <button v-for="cls in activeDisciplineClasses" :key="cls.class_id"
+                  class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2 text-left transition-all"
+                  :class="selectedClassIds.includes(cls.class_id)
+                    ? 'border-emerald-400 bg-emerald-50'
+                    : 'border-gray-200 hover:border-emerald-200 hover:bg-emerald-50/30'"
+                  @click="toggleTurma(cls.class_id)">
+                  <div class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                    :class="selectedClassIds.includes(cls.class_id) ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'">
+                    <Icon v-if="selectedClassIds.includes(cls.class_id)" name="lucide:check" class="w-3 h-3 text-white" />
+                  </div>
+                  <span class="text-sm font-semibold"
+                    :class="selectedClassIds.includes(cls.class_id) ? 'text-emerald-900' : 'text-gray-700'">
+                    {{ cls.class_name }}
+                  </span>
+                </button>
               </div>
-            </button>
+            </div>
           </div>
 
-          <button
-            :disabled="selectedClassIds.length === 0"
-            class="w-full py-3 rounded-xl text-sm font-bold transition-all"
-            :class="selectedClassIds.length > 0
-              ? 'bg-gray-900 text-white hover:bg-gray-800'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
-            @click="confirmarSelecaoTurmas">
-            Confirmar seleção
-            <span v-if="selectedClassIds.length > 0" class="ml-1 opacity-60">
-              ({{ selectedClassIds.length }} turma{{ selectedClassIds.length > 1 ? 's' : '' }})
-            </span>
-          </button>
+          <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+            <p class="text-xs text-gray-400">
+              {{ selectedClassIds.length }} turma{{ selectedClassIds.length !== 1 ? 's' : '' }} selecionada{{ selectedClassIds.length !== 1 ? 's' : '' }}
+            </p>
+            <button
+              :disabled="selectedClassIds.length === 0 || !activeDisciplineId"
+              class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95"
+              :class="selectedClassIds.length > 0 && activeDisciplineId
+                ? 'bg-gray-900 text-white hover:bg-gray-700'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
+              @click="confirmarSelecaoTurmas">
+              Confirmar
+            </button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -116,10 +132,10 @@
             </span>
             <span class="text-gray-300">·</span>
             <span>alt. A–{{ exam.options_count === 4 ? 'D' : 'E' }}</span>
-            <button v-if="myAssignments.length > 1"
+            <button v-if="myDisciplines.length > 1 || myDisciplines.some((d: any) => d.classes.length > 1)"
               class="text-xs text-blue-500 hover:text-blue-700 underline"
               @click="showClassSelector = true">
-              trocar turmas
+              trocar disciplina/turmas
             </button>
           </p>
         </template>
@@ -712,34 +728,39 @@ const progressInfo = ref<any>(null)
 const questoes     = ref<any[]>([])
 const loadingExam  = ref(true)
 
-// ── Turmas múltiplas ──
-const myAssignments     = ref<any[]>([])
+// ── Múltiplas disciplinas e turmas ──
+const myAssignments     = ref<any[]>([])          // flat — legado
+const myDisciplines     = ref<any[]>([])          // [{ discipline_id, discipline_name, classes: [...] }]
+const activeDisciplineId = ref<number | null>(null)
 const selectedClassIds  = ref<number[]>([])
 const showClassSelector = ref(false)
 
-const turmasDoMesmoAno = computed(() => {
-  if (!myAssignments.value.length) return []
-  const anoAtual = extrairAno(myAssignments.value[0]?.class_name ?? '')
-  return myAssignments.value.filter(a => extrairAno(a.class_name ?? '') === anoAtual)
+// Turmas da disciplina atualmente selecionada no modal
+const activeDisciplineClasses = computed(() => {
+  const disc = myDisciplines.value.find(d => d.discipline_id === activeDisciplineId.value)
+  return disc?.classes ?? []
 })
 
-const todasDoAnoSelecionadas = computed(() =>
-  turmasDoMesmoAno.value.length > 1 &&
-  turmasDoMesmoAno.value.every(t => selectedClassIds.value.includes(t.class_id))
+const todasTurmasSelecionadas = computed(() =>
+  activeDisciplineClasses.value.length > 0 &&
+  activeDisciplineClasses.value.every((c: any) => selectedClassIds.value.includes(c.class_id))
 )
 
 const turmasLabel = computed(() => {
   if (!progressInfo.value) return '—'
   const ids = progressInfo.value.targetClassIds ?? [progressInfo.value.class_id]
-  const nomes = myAssignments.value
-    .filter(a => ids.includes(a.class_id))
-    .map(a => a.class_name)
+  const allClasses = myDisciplines.value.flatMap((d: any) => d.classes)
+  const nomes = allClasses
+    .filter((c: any) => ids.includes(c.class_id))
+    .map((c: any) => c.class_name)
   return nomes.length ? nomes.join(', ') : progressInfo.value.class_name ?? '—'
 })
 
-function extrairAno(nome: string): string {
-  const m = nome.match(/^(\d+)/)
-  return m ? m[1] : nome.substring(0, 2)
+function selectDiscipline(discId: number) {
+  if (activeDisciplineId.value === discId) return
+  activeDisciplineId.value = discId
+  // Reset turmas ao trocar disciplina — não faz sentido manter seleção de outra disciplina
+  selectedClassIds.value = []
 }
 
 function toggleTurma(classId: number) {
@@ -748,38 +769,45 @@ function toggleTurma(classId: number) {
   else selectedClassIds.value.push(classId)
 }
 
-function toggleTodasDoAno() {
-  if (todasDoAnoSelecionadas.value) {
-    selectedClassIds.value = selectedClassIds.value.filter(
-      id => !turmasDoMesmoAno.value.some(t => t.class_id === id)
-    )
+function toggleTodasTurmasDisciplina() {
+  if (todasTurmasSelecionadas.value) {
+    selectedClassIds.value = []
   } else {
-    turmasDoMesmoAno.value.forEach(t => {
-      if (!selectedClassIds.value.includes(t.class_id))
-        selectedClassIds.value.push(t.class_id)
-    })
+    selectedClassIds.value = activeDisciplineClasses.value.map((c: any) => c.class_id)
   }
 }
 
 function fecharModalTurmas() {
-  // Se nenhuma selecionada ainda, usa a primeira por padrão
-  if (selectedClassIds.value.length === 0 && myAssignments.value.length > 0) {
-    selectedClassIds.value = [myAssignments.value[0].class_id]
+  // Se nenhuma configurada ainda, aplica primeira disciplina + primeira turma
+  if (!progressInfo.value?.discipline_id && myDisciplines.value.length > 0) {
+    const firstDisc = myDisciplines.value[0]
+    const firstClass = firstDisc.classes[0]
+    if (firstClass) {
+      progressInfo.value = {
+        ...progressInfo.value,
+        discipline_id:   firstDisc.discipline_id,
+        discipline_name: firstDisc.discipline_name,
+        class_id:        firstClass.class_id,
+        class_name:      firstClass.class_name,
+        targetClassIds:  [firstClass.class_id],
+      }
+    }
   }
   showClassSelector.value = false
 }
 
 function confirmarSelecaoTurmas() {
-  const selected = myAssignments.value.filter(a => selectedClassIds.value.includes(a.class_id))
-  if (!selected.length) return
-  const first = selected[0]
+  if (!activeDisciplineId.value || selectedClassIds.value.length === 0) return
+  const disc = myDisciplines.value.find(d => d.discipline_id === activeDisciplineId.value)
+  if (!disc) return
+  const firstClass = disc.classes.find((c: any) => selectedClassIds.value.includes(c.class_id))
   progressInfo.value = {
     ...progressInfo.value,
-    class_id:       first.class_id,
-    discipline_id:  first.discipline_id,
-    class_name:     first.class_name,
-    discipline_name: first.discipline_name,
-    targetClassIds: selected.map(a => a.class_id),
+    discipline_id:   disc.discipline_id,
+    discipline_name: disc.discipline_name,
+    class_id:        firstClass?.class_id ?? selectedClassIds.value[0],
+    class_name:      firstClass?.class_name ?? null,
+    targetClassIds:  [...selectedClassIds.value],
   }
   showClassSelector.value = false
 }
@@ -1001,33 +1029,53 @@ onMounted(async () => {
     questoes.value = (questoesData ?? []).map(normalizeQuestion)
 
     if (myAssignment) {
-      myAssignments.value = myAssignment.assignments ?? [myAssignment]
+      myAssignments.value  = myAssignment.assignments ?? [myAssignment]
+      myDisciplines.value  = myAssignment.disciplines ?? []
 
-      if (progressData?.disciplines?.length) {
-        const myDisc = progressData.disciplines.find(
-          (d: any) => d.discipline_id === myAssignment.discipline_id
-        ) ?? progressData.disciplines[0]
+      // Se o backend ainda não retorna disciplines (versão antiga), montar manualmente
+      if (!myDisciplines.value.length && myAssignments.value.length) {
+        const discMap: Record<number, any> = {}
+        for (const a of myAssignments.value) {
+          if (!discMap[a.discipline_id]) {
+            discMap[a.discipline_id] = {
+              discipline_id:   a.discipline_id,
+              discipline_name: a.discipline_name,
+              classes: [],
+            }
+          }
+          discMap[a.discipline_id].classes.push({ class_id: a.class_id, class_name: a.class_name })
+        }
+        myDisciplines.value = Object.values(discMap)
+      }
 
-        const mySubmitted = questoes.value.filter(
-          (q: any) => q.discipline_id === myAssignment.discipline_id
-        ).length
+      // Configurar disciplina ativa inicial = primeira disciplina
+      const firstDisc  = myDisciplines.value[0]
+      const firstClass = firstDisc?.classes?.[0]
 
-        progressInfo.value = {
-          ...myDisc,
-          submitted:       mySubmitted,
-          class_id:        myAssignment.class_id,
-          discipline_id:   myAssignment.discipline_id,
-          class_name:      myAssignment.class_name ?? null,
-          discipline_name: myAssignment.discipline_name ?? null,
-          targetClassIds:  [myAssignment.class_id],
+      if (firstDisc && firstClass) {
+        activeDisciplineId.value = firstDisc.discipline_id
+        selectedClassIds.value   = [firstClass.class_id]
+
+        if (progressData?.disciplines?.length) {
+          const myDisc = progressData.disciplines.find(
+            (d: any) => d.discipline_id === firstDisc.discipline_id
+          ) ?? progressData.disciplines[0]
+
+          progressInfo.value = {
+            ...myDisc,
+            discipline_id:   firstDisc.discipline_id,
+            discipline_name: firstDisc.discipline_name,
+            class_id:        firstClass.class_id,
+            class_name:      firstClass.class_name,
+            targetClassIds:  [firstClass.class_id],
+          }
         }
       }
 
-      // Inicializa checkboxes com a primeira turma
-      selectedClassIds.value = [myAssignment.class_id]
-
-      // Só abre modal se realmente tiver mais de 1 turma
-      if (myAssignments.value.length > 1) {
+      // Abre modal se tiver múltiplas disciplinas OU múltiplas turmas em alguma disciplina
+      const hasMultiple = myDisciplines.value.length > 1 ||
+        myDisciplines.value.some((d: any) => d.classes.length > 1)
+      if (hasMultiple) {
         showClassSelector.value = true
       }
     } else if (progressData?.disciplines?.length) {
@@ -1140,11 +1188,10 @@ async function salvarQuestao() {
           discipline_id:  progressInfo.value?.discipline_id,
           class_id:       classId,
         }
-        const created = normalizeQuestion(await post<any>(`/exams/${examId}/questions`, payload))
-        if (created?.id) {
-          questoes.value = [...questoes.value, created]
-        }
+        await post<any>(`/exams/${examId}/questions`, payload)
       }
+      // Recarrega lista completa para garantir que todas aparecem imediatamente
+      questoes.value = (await get<any[]>(`/exams/${examId}/questions`)).map(normalizeQuestion)
       showToast(targetIds.length > 1
         ? `Questão adicionada para ${targetIds.length} turmas!`
         : 'Questão adicionada!')

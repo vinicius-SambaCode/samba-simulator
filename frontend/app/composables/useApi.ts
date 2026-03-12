@@ -1,20 +1,16 @@
 // composables/useApi.ts
-const BASE_URL = 'http://localhost:8000'
-
 export function useApi() {
-  // useState é compartilhado entre servidor e cliente no Nuxt.
-  // No servidor, localStorage não existe — inicializa como null.
-  // No cliente, após hidratação, useCookie garante que o valor persiste no F5.
+  const config = useRuntimeConfig()
+  const BASE_URL = config.public.apiBase as string
+
   const tokenCookie = useCookie<string | null>('samba_token', {
     default: () => null,
-    maxAge: 60 * 60 * 8, // 8 horas
+    maxAge: 60 * 60 * 8,
     sameSite: 'lax',
   })
 
-  // Estado reativo sincronizado com o cookie
   const accessToken = useState<string | null>('access_token', () => tokenCookie.value)
 
-  // Mantém cookie e estado sincronizados
   watch(accessToken, (val) => {
     tokenCookie.value = val
   })
@@ -26,16 +22,9 @@ export function useApi() {
     isFormData = false,
   ): Promise<T> {
     const headers: Record<string, string> = {}
-
     const token = accessToken.value ?? tokenCookie.value
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    if (!isFormData) {
-      headers['Content-Type'] = 'application/json'
-    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    if (!isFormData) headers['Content-Type'] = 'application/json'
 
     const res = await fetch(`${BASE_URL}${path}`, {
       method,

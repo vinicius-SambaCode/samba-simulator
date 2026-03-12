@@ -476,28 +476,79 @@ def get_my_assignment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Retorna todos os assignments do professor logado neste simulado (pode ter múltiplas turmas)."""
+    """
+    Retorna os assignments do professor agrupados por disciplina.
+    Cada disciplina lista suas turmas separadamente — evita mistura de
+    Física (4 turmas) com Química Aplicada (2 turmas) no mesmo seletor.
+
+    Estrutura retornada:
+    {
+      "disciplines": [
+        {
+          "discipline_id": 3,
+          "discipline_name": "Física",
+          "classes": [
+            {"class_id": 10, "class_name": "3ªA"},
+            {"class_id": 11, "class_name": "3ªB"},
+            ...
+          ]
+        },
+        {
+          "discipline_id": 4,
+          "discipline_name": "Química Aplicada",
+          "classes": [
+            {"class_id": 13, "class_name": "3ªC"},
+            {"class_id": 14, "class_name": "3ªD"}
+          ]
+        }
+      ],
+      # Campos legados para compatibilidade com código antigo
+      "class_id": ...,
+      "discipline_id": ...,
+      "class_name": ...,
+      "discipline_name": ...,
+      "assignments": [...]
+    }
+    """
     exam = _get_exam_or_404(db, exam_id)
     assignments = [a for a in exam.teacher_assignments if a.teacher_user_id == current_user.id]
     if not assignments:
         raise HTTPException(status_code=404, detail="Nenhum assignment encontrado para este professor.")
 
-    result = []
-    for assignment in assignments:
-        discipline = db.get(Discipline, assignment.discipline_id)
-        result.append({
-            "class_id":        assignment.class_id,
-            "discipline_id":   assignment.discipline_id,
-            "class_name":      assignment.school_class.name if assignment.school_class else None,
-            "discipline_name": discipline.name if discipline else None,
+    # Agrupar por disciplina mantendo ordem de inserção
+    disc_map: Dict[int, dict] = {}
+    flat = []
+    for a in assignments:
+        discipline = db.get(Discipline, a.discipline_id)
+        class_name = a.school_class.name if a.school_class else None
+        disc_name  = discipline.name if discipline else None
+
+        flat.append({
+            "class_id":        a.class_id,
+            "discipline_id":   a.discipline_id,
+            "class_name":      class_name,
+            "discipline_name": disc_name,
         })
 
-    # Retorna lista completa + atalho para o primeiro (compatibilidade com frontend antigo)
-    first = result[0]
+        if a.discipline_id not in disc_map:
+            disc_map[a.discipline_id] = {
+                "discipline_id":   a.discipline_id,
+                "discipline_name": disc_name,
+                "classes": [],
+            }
+        disc_map[a.discipline_id]["classes"].append({
+            "class_id":   a.class_id,
+            "class_name": class_name,
+        })
+
+    first = flat[0]
     return {
+        # Estrutura nova — frontend usa isso
+        "disciplines": list(disc_map.values()),
+        # Campos legados — compatibilidade
         "class_id":        first["class_id"],
         "discipline_id":   first["discipline_id"],
         "class_name":      first["class_name"],
         "discipline_name": first["discipline_name"],
-        "assignments":     result,  # lista completa de turmas
+        "assignments":     flat,
     }

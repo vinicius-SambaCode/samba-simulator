@@ -1,0 +1,98 @@
+version: "3.9"
+
+# =============================================================================
+# SAMBA Simulator — Stack Completa
+# =============================================================================
+# Serviços:
+#   db       → PostgreSQL 15 (persistido em volume Docker)
+#   api      → FastAPI + Alembic + Seed (porta interna 8000)
+#   frontend → Nuxt SPA buildada + Nginx proxy reverso (porta 80)
+#
+# Acesso após subir:
+#   http://localhost        → Sistema (frontend)
+#   http://localhost/api/   → API (diagnóstico)
+#   http://localhost/api/docs → Swagger UI
+#
+# Uso:
+#   docker compose up -d          → sobe tudo
+#   docker compose logs -f api    → logs da API
+#   docker compose down           → para
+#   docker compose down -v        → para e apaga banco (CUIDADO)
+# =============================================================================
+
+services:
+
+  # ── Banco de dados ──────────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: samba_pg
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-samba2025}
+      POSTGRES_DB:       ${POSTGRES_DB:-samba_simulator}
+    volumes:
+      - samba_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-samba_simulator}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+    # Porta do DB NÃO exposta ao host por segurança.
+    # Se precisar acessar com um client SQL, descomente abaixo:
+    # ports:
+    #   - "5433:5432"
+
+  # ── API FastAPI ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: samba_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV:        production
+      APP_HOST:       0.0.0.0
+      APP_PORT:       "8000"
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-samba2025}
+      POSTGRES_DB:       ${POSTGRES_DB:-samba_simulator}
+      DB_HOST:        samba_pg
+      DB_PORT:        "5432"
+      DATABASE_URL:   postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-samba2025}@samba_pg:5432/${POSTGRES_DB:-samba_simulator}
+      SECRET_KEY:     ${SECRET_KEY:-samba-escola-sp-secret-2025}
+      ACCESS_TOKEN_EXPIRE_MINUTES: "480"
+      # Aceita requisições do Nginx (sem CORS problem pois é proxy interno)
+      CORS_ORIGINS:   "http://localhost,http://127.0.0.1,http://0.0.0.0"
+      STORAGE_DIR:    /app/storage
+    volumes:
+      - samba_storage:/app/storage
+    restart: unless-stopped
+    # Porta da API NÃO exposta ao host — só o Nginx a acessa internamente.
+    # Para debug direto, descomente:
+    # ports:
+    #   - "8000:8000"
+
+  # ── Frontend Nuxt + Nginx ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Durante o build da SPA, a API é acessada via proxy Nginx em /api
+        NUXT_PUBLIC_API_BASE: /api
+    container_name: samba_frontend
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+volumes:
+  samba_pg_data:
+    name: samba_pg_data
+  samba_storage:
+    name: samba_storage

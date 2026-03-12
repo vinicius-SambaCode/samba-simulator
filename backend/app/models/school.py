@@ -17,6 +17,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.models.base_models import Base
+# ClassDiscipline usa FK para disciplines — importado via string para evitar circular
+# relationship("Discipline") usa lazy string ref, não precisa de import direto
 
 
 class EducationLevel(str, Enum):
@@ -90,3 +92,29 @@ class Student(Base):
     class_id: Mapped[int] = mapped_column(Integer, ForeignKey("school_classes.id"), index=True)
 
     school_class = relationship(SchoolClass)
+
+
+class ClassDiscipline(Base):
+    """
+    Grade curricular formal de uma turma.
+    Define quais disciplinas compõem o currículo de cada SchoolClass.
+    Ex.: Turma 3ªA (Exatas) tem Programação; Turma 3ªB (Humanas) não tem.
+    """
+    __tablename__ = "class_disciplines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    class_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("school_classes.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    discipline_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("disciplines.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+
+    school_class = relationship("SchoolClass", backref="class_disciplines")
+    discipline   = relationship("Discipline")
+
+    __table_args__ = (
+        UniqueConstraint("class_id", "discipline_id", name="uq_class_discipline"),
+    )

@@ -5,7 +5,11 @@
 
 import katex from 'katex'
 
-const BASE_URL = 'http://localhost:8000'
+// BASE_URL vem do runtimeConfig
+function getBaseUrl() {
+  const config = useRuntimeConfig()
+  return config.public.apiBase as string
+}
 
 export interface QuestionImage {
   id: number
@@ -70,7 +74,7 @@ function escapeHtml(str: string): string {
 }
 
 function imgHtml(img: QuestionImage): string {
-  const src = img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`
+  const src = img.url.startsWith('http') ? img.url : `${getBaseUrl()}${img.url}`
   const w   = img.width_px ? `max-width: ${Math.min(img.width_px, 600)}px;` : 'max-width: 100%;'
   return `<img src="${src}" alt="Imagem da questão" class="question-img rounded-lg my-2 block" style="${w}" loading="lazy" />`
 }

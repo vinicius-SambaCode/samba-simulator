@@ -219,9 +219,36 @@ def seed_users(db: Session) -> dict[str, User]:
 
 def seed_disciplines(db: Session) -> dict[str, Discipline]:
     print("\n📚 Disciplinas...")
+    # Grade completa EF (Anos Finais) + EM — SEDUC-SP
     names = [
-        "Matemática", "Português", "Física", "Química",
-        "Biologia", "História", "Geografia", "Inglês",
+        # Comuns EF e EM
+        "Língua Portuguesa",
+        "Arte",
+        "Educação Física",
+        "Língua Inglesa",
+        "Matemática",
+        "História",
+        "Geografia",
+        # EF específicas
+        "Ciências",
+        "Ensino Religioso",
+        # EM — Formação Geral Básica
+        "Física",
+        "Química",
+        "Biologia",
+        "Sociologia",
+        "Filosofia",
+        "Projeto de Vida",
+        # EM — Itinerários Formativos
+        "Estudos de Língua e Cultura",
+        "Comunicação e Expressão Criativa",
+        "Investigação Científica",
+        "Matemática Aplicada",
+        "Mundo do Trabalho",
+        "Programação",
+        "Tecnologia e Inovação",
+        "Redação e Argumentação",
+        "Empreendedorismo",
     ]
     return {n: _get_or_create_discipline(db, n) for n in names}
 
@@ -300,7 +327,7 @@ def seed_teacher_assignments(
     print("\n🔗 Mapeamentos professor → disciplina → turma...")
 
     mat  = disciplines["Matemática"]
-    port = disciplines["Português"]
+    port = disciplines["Língua Portuguesa"]
     fis  = disciplines["Física"]
     qui  = disciplines["Química"]
 

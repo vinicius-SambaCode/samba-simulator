@@ -1,196 +1,127 @@
-# SAMBA Simulator — Backend
+# SAMBA Simulator — Instalação nas Unidades Escolares
 
-> Sistema de Avaliação e Monitoramento de Bimestral Automatizado  
-> Backend FastAPI + PostgreSQL para geração e correção de simulados escolares.
+## Pré-requisitos (instalar uma vez por computador)
 
----
+| Software | Download | Versão mínima |
+|---|---|---|
+| **Docker Desktop** | https://www.docker.com/products/docker-desktop | 4.x |
+| **Git** | https://git-scm.com/downloads | qualquer |
 
-## 🚀 Funcionalidades
-
-- **Autenticação** JWT com roles (Admin, Coordenador, Professor)
-- **Estrutura escolar** — Séries, turmas, alunos, disciplinas
-- **Importação de alunos** via CSV padrão SEDUC-SP
-- **Upload de questões** via `.docx` com suporte a equações (OMML→LaTeX) e imagens embutidas
-- **Gabarito automático** extraído do `.docx` (`gabarito: X`) ou via CRUD
-- **Geração de PDFs** personalizados por aluno (caderno ABNT 2 colunas + folha OMR)
-- **Folha OMR profissional** com círculos (A–E), barcode e cabeçalho institucional
-- **Lotes de impressão** — PDF por sala, OMR por sala, ZIP individual por RA
-- **Scanner OMR** — upload de PDF escaneado, leitura de barcode + OpenCV para detecção de bolhas
-- **Correção automática** com nota `(10 / total) × acertos`
-- **Devolutiva por disciplina** — nota por área de conhecimento
-- **Exportação XLSX** por série com ranking, acertos por questão e cores certo/errado
-- **PDF devolutiva individual** com cabeçalho institucional, nota em destaque e tabela de questões
-- **ZIP de devolutivas** por turma — um PDF por aluno nomeado pelo RA
-- **Dashboard do coordenador** com progresso por simulado
+> No Windows: instale o Docker Desktop e reinicie o computador.  
+> No Linux: `sudo apt install docker.io docker-compose-plugin -y`
 
 ---
 
-## 🏗️ Stack
-
-| Camada | Tecnologia |
-|--------|-----------|
-| API | FastAPI 0.110 + Uvicorn |
-| Banco | PostgreSQL 15 + SQLAlchemy 2 + Alembic |
-| PDFs | ReportLab 4.1 |
-| OMR | OpenCV 4.8 + pyzbar |
-| Planilhas | openpyxl 3.1 |
-| Containers | Docker + Docker Compose |
-
----
-
-## ⚡ Início Rápido
-
-### Pré-requisitos
-- Docker Desktop
-- Python 3.12+ (para scripts locais)
-
-### 1. Clone e configure
+## Instalação (primeira vez)
 
 ```bash
-git clone https://github.com/vinicius-SambaCode/samba-simulator.git
-cd samba-simulator/backend
-cp .env.sample .env
-# Edite .env com suas credenciais se necessário
+# 1. Clone o repositório
+git clone https://github.com/SEU_USUARIO/samba-simulator.git
+cd samba-simulator
+
+# 2. (Opcional) Copie e ajuste o .env
+cp .env.example .env
+# Edite o .env se quiser mudar senha do banco
+
+# 3. Suba tudo — o Docker baixa as imagens e builda automaticamente
+docker compose up -d --build
 ```
 
-### 2. Suba os containers
+Aguarde ~3-5 minutos na primeira vez (baixando imagens e instalando dependências).  
+Nas próximas vezes, sobe em ~20 segundos.
+
+---
+
+## Acesso ao sistema
+
+Abra o navegador em: **http://localhost**
+
+| URL | O que é |
+|---|---|
+| http://localhost | Sistema (frontend) |
+| http://localhost/api/docs | Documentação da API (Swagger) |
+
+---
+
+## Comandos do dia a dia
 
 ```bash
+# Ligar o sistema
 docker compose up -d
+
+# Desligar o sistema
+docker compose down
+
+# Ver logs em tempo real
+docker compose logs -f
+
+# Ver logs só da API
+docker compose logs -f api
+
+# Atualizar após git pull
+docker compose up -d --build
+
+# Reiniciar só o frontend (após mudanças)
+docker compose up -d --build frontend
+
+# Reiniciar só a API (após mudanças)
+docker compose up -d --build api
 ```
 
-A API estará disponível em `http://localhost:8000`.  
-Documentação interativa: `http://localhost:8000/docs`
+---
 
-### 3. Verifique
+## Atualizar o sistema (depois de nova versão no GitHub)
 
 ```bash
-curl http://localhost:8000/health
+git pull
+docker compose up -d --build
 ```
 
 ---
 
-## 📁 Estrutura do Projeto
-
-```
-backend/
-├── app/
-│   ├── core/           # DB, segurança, settings, dependências
-│   ├── models/         # SQLAlchemy models
-│   ├── routes/         # Endpoints FastAPI
-│   ├── services/       # Lógica de negócio (PDF, OMR, resultados)
-│   └── storage/
-│       └── assets/     # Logos institucionais e docx de teste
-├── alembic/
-│   └── versions/       # Migrations do banco
-├── tests/              # Testes automatizados
-├── test_gerar_pdf.py   # Script de teste de geração de PDFs
-├── test_passo14.py     # Script de teste OMR + resultados
-├── docker-compose.yml
-├── Dockerfile
-├── requirements.txt
-└── .env.sample
-```
-
----
-
-## 🔑 Credenciais padrão (seed)
-
-| Usuário | Senha | Role |
-|---------|-------|------|
-| `admin@samba.local` | `admin123` | ADMIN |
-| `coord@samba.local` | `coord123` | COORDINATOR |
-| `prof.fisica@samba.local` | `prof123` | TEACHER |
-
-> ⚠️ Altere as senhas em produção via `.env`.
-
----
-
-## 📋 Endpoints principais
-
-### Autenticação
-```
-POST /auth/login          — Login (form-data: username, password)
-POST /auth/refresh        — Refresh token
-```
-
-### Simulados
-```
-POST /exams/                          — Criar simulado
-POST /exams/{id}/questions/upload     — Upload .docx com questões
-POST /exams/{id}/lock                 — Travar simulado para geração
-GET  /exams/{id}/links                — Consultar gabarito
-PATCH /exams/{id}/links/{lid}/answer  — Atualizar gabarito manualmente
-```
-
-### PDFs
-```
-POST /exams/{id}/pdf/generate         — Gerar PDFs (por turma ou aluno)
-GET  /exams/{id}/pdf/download         — Download individual
-GET  /exams/{id}/pdf/batch            — Lote: booklets | omr | individual (ZIP)
-```
-
-### OMR e Resultados
-```
-POST /exams/{id}/omr/upload                    — Upload PDF escaneado
-GET  /exams/{id}/results                       — Resultados (turma ou aluno)
-GET  /exams/{id}/results/export                — XLSX por série
-GET  /exams/{id}/results/report/{student_id}   — PDF devolutiva individual
-GET  /exams/{id}/results/export/reports        — ZIP devolutivas por turma
-```
-
----
-
-## 🧪 Testes
+## Backup do banco de dados
 
 ```bash
-# Teste de geração de PDFs
-docker compose cp test_gerar_pdf.py api:/tmp/test_gerar_pdf.py
-docker compose exec api python /tmp/test_gerar_pdf.py
+# Exportar
+docker exec samba_pg pg_dump -U postgres samba_simulator > backup_$(date +%Y%m%d).sql
 
-# Teste OMR + resultados
-docker compose cp test_passo14.py api:/tmp/test_passo14.py
-docker compose exec api python /tmp/test_passo14.py
-
-# Testes unitários
-docker compose exec api pytest tests/ -v
+# Restaurar
+docker exec -i samba_pg psql -U postgres samba_simulator < backup_20250101.sql
 ```
 
 ---
 
-## 📄 Formato do .docx para questões
+## Solução de problemas
 
-Cada questão deve seguir o formato:
-
-```
-1. Enunciado da questão aqui.
-a) Alternativa A
-b) Alternativa B
-c) Alternativa C
-d) Alternativa D
-e) Alternativa E
-gabarito: c
-```
-
-Suporte a:
-- Equações Word (OMML) convertidas automaticamente para LaTeX
-- Imagens embutidas extraídas e armazenadas por questão
-
----
-
-## 🗄️ Migrations
-
+**Sistema não abre no navegador:**
 ```bash
-# Rodar migrations pendentes
-docker compose exec api alembic upgrade head
+docker compose ps          # verifica se os containers estão rodando
+docker compose logs api    # vê erros da API
+```
 
-# Criar nova migration
-docker compose exec api alembic revision --autogenerate -m "descricao"
+**"port 80 already in use":**  
+Outro serviço está usando a porta 80. Edite `docker-compose.yml` e mude `"80:80"` para `"8080:80"`, depois acesse em `http://localhost:8080`.
+
+**Banco corrompido / limpar tudo:**
+```bash
+docker compose down -v     # APAGA TODOS OS DADOS
+docker compose up -d --build
 ```
 
 ---
 
-## 📜 Licença
+## Estrutura do repositório
 
-Projeto desenvolvido para uso interno escolar.  
-EE Prof. Christino Cabral — Bauru/SP — Secretaria de Estado da Educação de São Paulo.
+```
+samba-simulator/
+├── docker-compose.yml      ← orquestra tudo
+├── .env.example            ← modelo de configuração
+├── backend/                ← FastAPI + PostgreSQL
+│   ├── Dockerfile
+│   ├── entrypoint.sh       ← migrations + seed automáticos na subida
+│   └── app/
+└── frontend/               ← Nuxt SPA + Nginx
+    ├── Dockerfile
+    ├── nginx.conf
+    └── app/
+```
