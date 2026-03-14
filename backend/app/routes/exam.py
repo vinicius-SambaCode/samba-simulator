@@ -470,6 +470,28 @@ def list_exam_teacher_assignments(exam_id: int, db: Session = Depends(get_db)):
     ]
 
 
+@router.delete(
+    "/{exam_id}/teacher-assignments/{assignment_id}",
+    status_code=204,
+    dependencies=[Depends(require_role("COORDINATOR", "ADMIN"))],
+)
+def delete_teacher_assignment(
+    exam_id: int,
+    assignment_id: int,
+    db: Session = Depends(get_db),
+):
+    """Remove uma atribuição professor/turma/disciplina de um simulado."""
+    exam = _get_exam_or_404(db, exam_id)
+    assignment = next(
+        (a for a in exam.teacher_assignments if a.id == assignment_id), None
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Atribuição não encontrada.")
+    db.delete(assignment)
+    db.commit()
+    return None
+
+
 @router.get("/{exam_id}/my-assignment")
 def get_my_assignment(
     exam_id: int,

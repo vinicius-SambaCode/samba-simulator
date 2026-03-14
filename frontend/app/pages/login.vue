@@ -170,9 +170,10 @@ function onEmailBlur() {
 }
 
 const devAccounts = [
-  { label:'Root / Admin',      email:'admin@samba.local',           password:'admin123', icon:'lucide:shield',          iconBg:'bg-gray-900',   iconColor:'text-white'      },
-  { label:'Coordenador',       email:'coord@samba.local',           password:'coord123', icon:'lucide:layout-dashboard',iconBg:'bg-blue-50',    iconColor:'text-blue-600'   },
-  { label:'Prof. Matemática',  email:'prof.matematica@samba.local', password:'prof123',  icon:'lucide:book-open',       iconBg:'bg-orange-50',  iconColor:'text-orange-500' },
+  { label:'Root / Admin',      email:'root@samba.edvance',              password:'R7D46S*98/4pwd', icon:'lucide:shield',          iconBg:'bg-gray-900',   iconColor:'text-white'      },
+  { label:'Coordenador Demo',  email:'coord@samba.edvance',             password:'Coord@123',      icon:'lucide:layout-dashboard',iconBg:'bg-blue-50',    iconColor:'text-blue-600'   },
+  { label:'Prof. Matemática',  email:'prof.matematica@samba.edvance',   password:'Prof@123',       icon:'lucide:calculator',      iconBg:'bg-orange-50',  iconColor:'text-orange-500' },
+  { label:'Prof. Física',      email:'prof.fisica@samba.edvance',       password:'Prof@123',       icon:'lucide:atom',            iconBg:'bg-violet-50',  iconColor:'text-violet-500' },
 ]
 
 function fillMock(acc: typeof devAccounts[0]) {

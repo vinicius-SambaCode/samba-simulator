@@ -241,7 +241,12 @@ async function saveAssignment() {
 }
 
 async function removeAssignment(id: number) {
-  // Não há endpoint DELETE direto; exibe info
+  try {
+    await del(`/exams/${examId.value}/teacher-assignments/${id}`)
+    assignments.value = assignments.value.filter(a => a.id !== id)
+  } catch (e: any) {
+    quotaError.value = e?.data?.detail ?? 'Erro ao remover atribuição.'
+  }
 }
 
 async function loadAssignments() {

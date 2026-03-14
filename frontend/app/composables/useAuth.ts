@@ -68,11 +68,12 @@ export function useAuth() {
 
   async function login(email: string, password: string): Promise<'ok' | 'change_password' | 'error'> {
     try {
+      const { apiBase } = useRuntimeConfig().public
       const formData = new URLSearchParams()
       formData.append('username', email)
       formData.append('password', password)
 
-      const res = await fetch('http://localhost:8000/auth/login', {
+      const res = await fetch(`${apiBase}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         credentials: 'include',
@@ -96,7 +97,8 @@ export function useAuth() {
 
   async function logout() {
     try {
-      await fetch('http://localhost:8000/auth/logout', {
+      const { apiBase } = useRuntimeConfig().public
+      await fetch(`${apiBase}/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,186 +1,141 @@
-<!-- pages/trocar-senha.vue -->
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-    style="background: #0c0e14">
+  <div class="shell">
+    <div class="bg-grid" />
 
-    <!-- Glow de fundo reativo à força da senha -->
-    <div class="absolute inset-0 pointer-events-none transition-all duration-1000"
-      :style="`background: radial-gradient(ellipse 600px 400px at 50% 60%, ${glowBg}15 0%, transparent 70%)`" />
+    <div class="card" :class="{ ready: mounted }">
 
-    <!-- Grid sutil -->
-    <div class="absolute inset-0 pointer-events-none opacity-[0.025]"
-      style="background-image: linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px);background-size:48px 48px" />
-
-    <div class="relative z-10 w-full max-w-[420px]">
-
-      <!-- Cabeçalho -->
-      <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-5 transition-all duration-700"
-          :style="`background:${glowBg}20;border:1px solid ${glowBg}40;box-shadow:0 0 32px ${glowBg}25`">
-          <svg class="w-8 h-8 transition-colors duration-700" fill="none" viewBox="0 0 24 24"
-            stroke-width="1.5" :stroke="glowBg">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-          </svg>
+      <!-- Topo -->
+      <div class="card-top">
+        <div class="logo-wrap">
+          <img src="/svg/edvance-logo2.svg" alt="Edvance" class="logo-img" />
         </div>
-        <h1 class="text-[22px] font-black text-white tracking-tight">Crie sua senha pessoal</h1>
-        <p class="text-sm text-gray-500 mt-1.5 leading-snug">
-          Primeiro acesso detectado.<br>Defina uma senha forte e segura.
-        </p>
+        <span class="first-badge">Primeiro acesso</span>
       </div>
 
-      <!-- Card -->
-      <div class="rounded-2xl p-6 space-y-5"
-        style="background:#131720;border:1px solid rgba(255,255,255,0.07);box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <!-- Heading -->
+      <div class="card-heading">
+        <div class="lock-icon" :style="`background:linear-gradient(135deg,${glowBg},${glowBgDark});box-shadow:0 8px 24px ${glowBg}40`">
+          <Icon name="lucide:lock-keyhole-open" class="w-5 h-5 text-white" />
+        </div>
+        <h1 class="heading-title">Crie sua senha pessoal</h1>
+        <p class="heading-sub">Primeiro acesso detectado. Defina uma senha forte.</p>
+      </div>
 
-        <!-- Campo: senha provisória -->
-        <div class="space-y-1.5">
-          <label class="text-[11px] font-bold uppercase tracking-widest text-gray-500">Senha provisória</label>
-          <div class="relative">
-            <input
-              v-model="senhaAtual"
-              :type="show.atual ? 'text' : 'password'"
+      <!-- Formulário -->
+      <div class="form">
+
+        <!-- Senha provisória -->
+        <div class="field">
+          <label class="field-label">Senha provisória</label>
+          <div class="input-wrap" :class="focused==='atual'?'input-wrap--focus':''">
+            <Icon name="lucide:key-round" class="input-icon" :class="focused==='atual'?'text-blue-500':'text-gray-400'" />
+            <input v-model="senhaAtual"
+              :type="show.atual?'text':'password'"
               placeholder="Senha recebida por e-mail"
               autocomplete="current-password"
-              class="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 pr-10 outline-none transition-all duration-200"
-              style="background:#0c0e14;border:1px solid rgba(255,255,255,0.1)"
-              @focus="(e: FocusEvent) => (e.target as HTMLElement).style.borderColor='rgba(255,255,255,0.25)'"
-              @blur="(e: FocusEvent) => (e.target as HTMLElement).style.borderColor='rgba(255,255,255,0.1)'"
-            />
-            <button type="button" @click="show.atual = !show.atual" tabindex="-1"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors">
-              <EyeIcon :open="show.atual" />
+              class="field-input"
+              @focus="focused='atual'" @blur="focused=''" />
+            <button type="button" class="eye-btn" tabindex="-1" @click="show.atual=!show.atual">
+              <Icon :name="show.atual?'lucide:eye-off':'lucide:eye'" class="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <!-- Campo: nova senha -->
-        <div class="space-y-1.5">
-          <label class="text-[11px] font-bold uppercase tracking-widest text-gray-500">Nova senha</label>
-          <div class="relative">
-            <input
-              v-model="novaSenha"
-              :type="show.nova ? 'text' : 'password'"
+        <!-- Nova senha -->
+        <div class="field">
+          <label class="field-label">Nova senha</label>
+          <div class="input-wrap" :class="focused==='nova'?'input-wrap--focus':''">
+            <Icon name="lucide:lock" class="input-icon" :class="focused==='nova'?'text-blue-500':'text-gray-400'" />
+            <input v-model="novaSenha"
+              :type="show.nova?'text':'password'"
               placeholder="Mínimo 8 caracteres"
               autocomplete="new-password"
-              class="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 pr-10 outline-none transition-all duration-200"
-              :style="`background:#0c0e14;border:1px solid ${novaSenha ? glowBorder : 'rgba(255,255,255,0.1)'}`"
-            />
-            <button type="button" @click="show.nova = !show.nova" tabindex="-1"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors">
-              <EyeIcon :open="show.nova" />
+              class="field-input"
+              @focus="focused='nova'" @blur="focused=''" />
+            <button type="button" class="eye-btn" tabindex="-1" @click="show.nova=!show.nova">
+              <Icon :name="show.nova?'lucide:eye-off':'lucide:eye'" class="w-4 h-4" />
             </button>
           </div>
 
           <!-- Barra de força -->
           <Transition name="expand">
-            <div v-if="novaSenha" class="space-y-2 pt-0.5">
-              <div class="flex gap-1.5">
-                <div v-for="i in 5" :key="i" class="h-1 flex-1 rounded-full transition-all duration-500"
-                  :style="i <= forcaNivel ? `background:${glowBg}` : 'background:rgba(255,255,255,0.07)'" />
+            <div v-if="novaSenha" class="strength-block">
+              <div class="strength-bars">
+                <div v-for="i in 5" :key="i" class="strength-bar"
+                  :style="i<=forcaNivel?`background:${glowBg}`:'background:#e5e7eb'" />
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-[11px] font-semibold transition-colors duration-500"
-                  :style="`color:${glowBg}`">{{ forcaLabel }}</span>
-                <span class="text-[11px] text-gray-600">{{ novaSenha.length }}/16</span>
+              <div class="strength-row">
+                <span class="strength-label" :style="`color:${glowBg}`">{{ forcaLabel }}</span>
+                <span class="strength-len">{{ novaSenha.length }}/16</span>
               </div>
-
-              <!-- Checklist de requisitos -->
-              <div class="grid grid-cols-2 gap-1 pt-0.5">
+              <!-- Requisitos -->
+              <div class="req-grid">
                 <div v-for="r in requisitos" :key="r.label"
-                  class="flex items-center gap-1.5 transition-all duration-300"
-                  :class="r.ok ? 'opacity-100' : 'opacity-40'">
-                  <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300"
-                    :style="r.ok ? `background:${glowBg}25;` : 'background:rgba(255,255,255,0.05)'">
-                    <svg v-if="r.ok" class="w-2.5 h-2.5" fill="none" viewBox="0 0 12 12"
-                      :style="`stroke:${glowBg}`" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M2 6l3 3 5-5" />
-                    </svg>
-                    <div v-else class="w-1 h-1 rounded-full bg-gray-600" />
+                  class="req-item" :class="r.ok?'req-ok':'req-off'">
+                  <div class="req-dot" :style="r.ok?`background:${glowBg}25`:'background:#f3f4f6'">
+                    <Icon v-if="r.ok" name="lucide:check" class="w-2.5 h-2.5" :style="`color:${glowBg}`" />
+                    <div v-else class="w-1 h-1 rounded-full bg-gray-300" />
                   </div>
-                  <span class="text-[11px] text-gray-400">{{ r.label }}</span>
+                  <span>{{ r.label }}</span>
                 </div>
               </div>
             </div>
           </Transition>
         </div>
 
-        <!-- Campo: confirmação -->
-        <div class="space-y-1.5">
-          <label class="text-[11px] font-bold uppercase tracking-widest text-gray-500">Confirmar nova senha</label>
-          <div class="relative">
-            <input
-              v-model="confirmar"
-              :type="show.confirmar ? 'text' : 'password'"
+        <!-- Confirmar -->
+        <div class="field">
+          <label class="field-label">Confirmar nova senha</label>
+          <div class="input-wrap"
+            :class="[focused==='confirmar'?'input-wrap--focus':'', confirmar&&senhasIguais?'input-wrap--ok':confirmar&&!senhasIguais?'input-wrap--err':'']">
+            <Icon name="lucide:shield-check" class="input-icon text-gray-400" />
+            <input v-model="confirmar"
+              :type="show.confirmar?'text':'password'"
               placeholder="Repita a nova senha"
               autocomplete="new-password"
-              class="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 pr-10 outline-none transition-all duration-200"
-              :style="`background:#0c0e14;border:1px solid ${
-                confirmar
-                  ? (senhasIguais ? 'rgba(16,185,129,0.5)' : 'rgba(239,68,68,0.4)')
-                  : 'rgba(255,255,255,0.1)'
-              }`"
-              @keydown.enter="submeter"
-            />
-            <button type="button" @click="show.confirmar = !show.confirmar" tabindex="-1"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors">
-              <EyeIcon :open="show.confirmar" />
+              class="field-input"
+              @focus="focused='confirmar'" @blur="focused=''"
+              @keyup.enter="submeter" />
+            <button type="button" class="eye-btn" tabindex="-1" @click="show.confirmar=!show.confirmar">
+              <Icon :name="show.confirmar?'lucide:eye-off':'lucide:eye'" class="w-4 h-4" />
             </button>
           </div>
           <Transition name="slide">
-            <p v-if="confirmar && !senhasIguais"
-              class="text-[11px] text-red-400 flex items-center gap-1.5">
-              <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
-              </svg>
-              As senhas não coincidem
+            <p v-if="confirmar&&!senhasIguais" class="match-error">
+              <Icon name="lucide:x-circle" class="w-3 h-3 flex-shrink-0" /> As senhas não coincidem
             </p>
           </Transition>
         </div>
 
         <!-- Erro geral -->
-        <Transition name="slide">
-          <div v-if="erro"
-            class="flex gap-2.5 rounded-xl px-4 py-3"
-            style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2)">
-            <svg class="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
-            </svg>
-            <p class="text-xs text-red-400 leading-relaxed">{{ erro }}</p>
+        <Transition name="shake">
+          <div v-if="erro" class="error-box">
+            <Icon name="lucide:shield-alert" class="w-4 h-4 flex-shrink-0 text-red-400" />
+            {{ erro }}
           </div>
         </Transition>
 
         <!-- Botão -->
-        <button
-          @click="submeter"
-          :disabled="!podeSubmeter || loading"
-          class="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-300 relative overflow-hidden"
-          :class="podeSubmeter && !loading
-            ? 'text-white cursor-pointer hover:brightness-110 active:scale-[0.98]'
-            : 'cursor-not-allowed'"
-          :style="podeSubmeter && !loading
-            ? `background:linear-gradient(135deg,${glowBg},${glowBg}bb);box-shadow:0 8px 24px ${glowBg}35`
-            : 'background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.2)'">
-          <span v-if="!loading" class="flex items-center justify-center gap-2">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-            </svg>
+        <button class="btn-submit"
+          :class="podeSubmeter&&!loading?'btn-submit--on':'btn-submit--off'"
+          :style="podeSubmeter&&!loading?`background:linear-gradient(135deg,${glowBg},${glowBgDark});box-shadow:0 8px 20px ${glowBg}35`:undefined"
+          :disabled="!podeSubmeter||loading"
+          @click="submeter">
+          <template v-if="!loading">
+            <Icon name="lucide:shield-check" class="w-4 h-4" />
             Definir senha e entrar
-          </span>
-          <span v-else class="flex items-center justify-center gap-2">
-            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+          </template>
+          <template v-else>
+            <svg class="spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/>
+              <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" class="opacity-75"/>
             </svg>
             Aguarde…
-          </span>
+          </template>
         </button>
       </div>
 
-      <p class="text-center text-[11px] text-gray-700 mt-5">
-        SAMBA Simulator · Acesso restrito à instituição
-      </p>
+      <p class="card-footer">© 2026 samba edvance · Acesso restrito</p>
     </div>
   </div>
 </template>
@@ -188,119 +143,182 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 
-// ── ícone de olho inline ────────────────────────────────────────────────────
-const EyeIcon = defineComponent({
-  props: { open: Boolean },
-  template: `
-    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-      <template v-if="open">
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
-      </template>
-      <template v-else>
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
-        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-      </template>
-    </svg>
-  `
-})
-
 const { user, fetchMe, getDashboardRoute } = useAuth()
 const { accessToken } = useApi()
+const mounted = ref(false)
+onMounted(async () => { await nextTick(); setTimeout(() => { mounted.value = true }, 40) })
 
-const senhaAtual = ref('')
-const novaSenha  = ref('')
-const confirmar  = ref('')
-const show       = reactive({ atual: false, nova: false, confirmar: false })
-const loading    = ref(false)
-const erro       = ref('')
+const senhaAtual = ref(''); const novaSenha = ref(''); const confirmar = ref('')
+const show     = reactive({ atual: false, nova: false, confirmar: false })
+const focused  = ref(''); const loading = ref(false); const erro = ref('')
 
-// Requisitos de senha
 const requisitos = computed(() => [
-  { label: '8 a 16 caracteres',   ok: novaSenha.value.length >= 8 && novaSenha.value.length <= 16 },
-  { label: 'Letra maiúscula',     ok: /[A-Z]/.test(novaSenha.value) },
-  { label: 'Letra minúscula',     ok: /[a-z]/.test(novaSenha.value) },
-  { label: 'Número',              ok: /\d/.test(novaSenha.value) },
-  { label: 'Caractere especial',  ok: /[@#$%&*!?]/.test(novaSenha.value) },
+  { label: '8 a 16 caracteres',  ok: novaSenha.value.length >= 8 && novaSenha.value.length <= 16 },
+  { label: 'Letra maiúscula',    ok: /[A-Z]/.test(novaSenha.value) },
+  { label: 'Letra minúscula',    ok: /[a-z]/.test(novaSenha.value) },
+  { label: 'Número',             ok: /\d/.test(novaSenha.value) },
+  { label: 'Caractere especial', ok: /[@#$%&*!?]/.test(novaSenha.value) },
 ])
-
 const forcaNivel = computed(() => requisitos.value.filter(r => r.ok).length)
-
 const forcaLabel = computed(() =>
   ['', 'Muito fraca', 'Fraca', 'Razoável', 'Boa', 'Forte'][forcaNivel.value] ?? ''
 )
-
-// Cor reativa conforme força
 const glowBg = computed(() => {
-  if (!novaSenha.value) return '#6366f1'
+  if (!novaSenha.value) return '#3b82f6'
   if (forcaNivel.value <= 1) return '#ef4444'
   if (forcaNivel.value === 2) return '#f97316'
   if (forcaNivel.value === 3) return '#eab308'
   if (forcaNivel.value === 4) return '#22c55e'
   return '#10b981'
 })
-
-const glowBorder = computed(() => {
-  if (forcaNivel.value === 5) return 'rgba(16,185,129,0.5)'
-  if (forcaNivel.value >= 3)  return 'rgba(234,179,8,0.4)'
-  return 'rgba(239,68,68,0.35)'
+const glowBgDark = computed(() => {
+  if (!novaSenha.value) return '#2563eb'
+  if (forcaNivel.value <= 1) return '#dc2626'
+  if (forcaNivel.value === 2) return '#ea580c'
+  if (forcaNivel.value === 3) return '#ca8a04'
+  if (forcaNivel.value === 4) return '#16a34a'
+  return '#059669'
 })
-
-const senhasIguais = computed(() =>
-  novaSenha.value.length > 0 && novaSenha.value === confirmar.value
-)
-
+const senhasIguais = computed(() => novaSenha.value.length > 0 && novaSenha.value === confirmar.value)
 const podeSubmeter = computed(() =>
-  senhaAtual.value.length > 0 &&
-  forcaNivel.value === 5 &&
-  senhasIguais.value
+  senhaAtual.value.length > 0 && forcaNivel.value === 5 && senhasIguais.value
 )
 
 async function submeter() {
   if (!podeSubmeter.value || loading.value) return
-  erro.value = ''
-  loading.value = true
-
+  erro.value = ''; loading.value = true
   try {
     const token = accessToken.value
-    const res = await fetch('http://localhost:8000/auth/change-password', {
+    const { apiBase } = useRuntimeConfig().public
+    const res = await fetch(`${apiBase}/auth/change-password`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: 'include',
-      body: JSON.stringify({
-        current_password: senhaAtual.value,
-        new_password:     novaSenha.value,
-      }),
+      body: JSON.stringify({ current_password: senhaAtual.value, new_password: novaSenha.value }),
     })
-
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       erro.value = data.detail ?? 'Não foi possível alterar a senha.'
       return
     }
-
     await fetchMe()
     if (!user.value) { await navigateTo('/login'); return }
     await navigateTo(getDashboardRoute(user.value.role))
-
-  } catch {
-    erro.value = 'Erro de conexão. Tente novamente.'
-  } finally {
-    loading.value = false
-  }
+  } catch { erro.value = 'Erro de conexão. Tente novamente.' }
+  finally { loading.value = false }
 }
 </script>
 
 <style scoped>
-.expand-enter-active { transition: all 0.3s ease; }
-.expand-leave-active { transition: all 0.2s ease; }
-.expand-enter-from, .expand-leave-to { opacity: 0; transform: translateY(-6px); }
+.shell {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:#f1f5f9; padding:1.5rem; position:relative; overflow:hidden;
+}
+.bg-grid {
+  position:absolute; inset:0;
+  background-image:linear-gradient(rgba(0,0,0,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.04) 1px,transparent 1px);
+  background-size:52px 52px;
+}
+.shell::before {
+  content:''; position:absolute; top:-15%; left:50%; transform:translateX(-50%);
+  width:700px; height:400px; border-radius:50%;
+  background:radial-gradient(ellipse,rgba(37,99,235,.07) 0%,transparent 70%);
+  pointer-events:none;
+}
+.card {
+  position:relative; width:100%; max-width:420px; background:white;
+  border:1px solid #e2e8f0; border-radius:1.25rem; padding:2rem;
+  display:flex; flex-direction:column; gap:1.75rem;
+  box-shadow:0 20px 48px rgba(0,0,0,.1);
+  opacity:0; transform:translateY(16px) scale(.98);
+  transition:opacity .45s ease, transform .45s cubic-bezier(.22,1,.36,1);
+}
+.card.ready { opacity:1; transform:translateY(0) scale(1); }
 
-.slide-enter-active { transition: all 0.2s ease; }
-.slide-leave-active { transition: all 0.15s ease; }
-.slide-enter-from, .slide-leave-to { opacity: 0; transform: translateY(-4px); }
+.card-top { display:flex; align-items:center; justify-content:space-between; }
+.logo-wrap { display:flex; align-items:center; }
+.logo-img  { height:1.75rem; width:auto; }
+.first-badge {
+  font-size:.65rem; font-weight:700; padding:.25rem .75rem;
+  background:#fef3c7; border:1px solid #fde68a; border-radius:9999px; color:#92400e;
+}
+
+.card-heading { display:flex; flex-direction:column; align-items:center; gap:.75rem; text-align:center; }
+.lock-icon {
+  width:3rem; height:3rem; border-radius:1rem;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .5s ease, box-shadow .5s ease;
+}
+.heading-title { font-size:1.35rem; font-weight:800; color:#0f172a; margin:0; letter-spacing:-.02em; }
+.heading-sub   { font-size:.75rem; color:#64748b; margin:0; }
+
+.form { display:flex; flex-direction:column; gap:1rem; }
+.field { display:flex; flex-direction:column; gap:.4rem; }
+.field-label { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#64748b; }
+.input-wrap {
+  position:relative; display:flex; align-items:center;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:.75rem;
+  transition:border-color .15s, box-shadow .15s, background .15s;
+}
+.input-wrap--focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.12); background:white; }
+.input-wrap--ok    { border-color:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.1); }
+.input-wrap--err   { border-color:#f87171; box-shadow:0 0 0 3px rgba(239,68,68,.08); }
+.input-icon { position:absolute; left:.875rem; width:1rem; height:1rem; pointer-events:none; transition:color .15s; }
+.field-input {
+  width:100%; padding:.75rem .875rem .75rem 2.5rem; background:none;
+  border:none; outline:none; font-size:.875rem; color:#0f172a; caret-color:#3b82f6;
+}
+.field-input::placeholder { color:#cbd5e1; }
+.eye-btn { position:absolute; right:.75rem; background:none; border:none; cursor:pointer; color:#94a3b8; padding:.25rem; transition:color .13s; }
+.eye-btn:hover { color:#475569; }
+
+/* Força da senha */
+.strength-block { display:flex; flex-direction:column; gap:.5rem; padding:.5rem 0 .25rem; }
+.strength-bars  { display:flex; gap:.25rem; }
+.strength-bar   { flex:1; height:.25rem; border-radius:9999px; transition:background .4s ease; }
+.strength-row   { display:flex; align-items:center; justify-content:space-between; }
+.strength-label { font-size:.7rem; font-weight:700; transition:color .4s ease; }
+.strength-len   { font-size:.65rem; color:#94a3b8; }
+.req-grid { display:grid; grid-template-columns:1fr 1fr; gap:.35rem; }
+.req-item { display:flex; align-items:center; gap:.5rem; font-size:.68rem; color:#6b7280; transition:opacity .2s; }
+.req-off  { opacity:.5; }
+.req-ok   { opacity:1; color:#374151; }
+.req-dot  { width:1.125rem; height:1.125rem; border-radius:9999px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .3s; }
+
+.match-error { display:flex; align-items:center; gap:.35rem; font-size:.68rem; color:#ef4444; font-weight:600; }
+.error-box   { display:flex; align-items:center; gap:.625rem; padding:.625rem .875rem; background:#fef2f2; border:1px solid #fecaca; border-radius:.75rem; font-size:.75rem; color:#dc2626; font-weight:500; }
+
+.btn-submit {
+  width:100%; padding:.8rem; border-radius:.875rem; border:none;
+  font-size:.875rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:.5rem;
+  cursor:pointer; transition:all .2s;
+}
+.btn-submit--on:hover  { filter:brightness(1.05); transform:translateY(-1px); }
+.btn-submit--on:active { transform:scale(.98); }
+.btn-submit--off { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+
+.card-footer { font-size:.65rem; color:#94a3b8; text-align:center; margin:0; border-top:1px solid #f1f5f9; padding-top:1rem; }
+
+@keyframes spin { to { transform:rotate(360deg); } }
+.spin { animation:spin .8s linear infinite; }
+
+.expand-enter-active { transition:all .3s ease; }
+.expand-leave-active { transition:all .2s ease; }
+.expand-enter-from, .expand-leave-to { opacity:0; transform:translateY(-6px); }
+
+.slide-enter-active { transition:all .2s ease; }
+.slide-leave-active { transition:all .15s ease; }
+.slide-enter-from, .slide-leave-to { opacity:0; transform:translateY(-4px); }
+
+.shake-enter-active { animation:shake .35s ease; }
+@keyframes shake {
+  0%,100% { transform:translateX(0); }
+  20%     { transform:translateX(-5px); }
+  40%     { transform:translateX(5px); }
+  60%     { transform:translateX(-3px); }
+  80%     { transform:translateX(3px); }
+}
 </style>

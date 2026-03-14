@@ -1,115 +1,153 @@
-<!-- pages/dashboard/root.vue -->
 <template>
-  <div class="space-y-8">
+  <div class="page">
 
-    <!-- Cabeçalho -->
-    <div>
-      <h2 class="text-2xl font-bold text-gray-900">Olá, {{ user?.name?.split(' ')[0] }} 👋</h2>
-      <p class="text-gray-500 mt-1">Visão geral de toda a rede municipal</p>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      <DashboardStatCard v-for="stat in stats" :key="stat.label" v-bind="stat" />
-    </div>
-
-    <!-- Gráfico placeholder + Atividade -->
-    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <div class="xl:col-span-2 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <h3 class="font-semibold text-gray-900">Simulados por escola</h3>
-            <p class="text-sm text-gray-400">Últimos 30 dias</p>
-          </div>
-          <button class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-            Ver tudo <Icon name="lucide:arrow-right" class="w-3 h-3" />
-          </button>
-        </div>
-        <div class="h-48 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-          <div class="text-center">
-            <Icon name="lucide:bar-chart-2" class="w-10 h-10 text-blue-300 mx-auto mb-2" />
-            <p class="text-sm text-blue-400">Gráfico — integre com Chart.js ou ApexCharts</p>
-          </div>
-        </div>
+    <div class="page-header fade-in" :class="{ ready: mounted }">
+      <div>
+        <h1 class="page-title">Painel Root</h1>
+        <p class="page-sub">Acesso total ao sistema — EE Prof. Christino Cabral</p>
       </div>
+      <span class="root-badge">
+        <Icon name="lucide:shield" class="w-3.5 h-3.5" /> Administrador
+      </span>
+    </div>
 
-      <!-- Atividade recente -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-        <h3 class="font-semibold text-gray-900 mb-4">Atividade recente</h3>
-        <div class="space-y-4">
-          <div v-for="activity in recentActivity" :key="activity.id" class="flex items-start gap-3">
-            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" :class="activity.iconBg">
-              <Icon :name="activity.icon" class="w-4 h-4" :class="activity.iconColor" />
-            </div>
-            <div>
-              <p class="text-sm text-gray-700">{{ activity.message }}</p>
-              <p class="text-xs text-gray-400 mt-0.5">{{ activity.time }}</p>
-            </div>
-          </div>
+    <!-- KPIs -->
+    <div class="kpi-grid fade-in" :class="{ ready: mounted }" style="--d:.06s">
+      <div v-for="k in kpis" :key="k.label" class="kpi-card">
+        <div class="kpi-icon" :class="k.iconBg">
+          <Icon :name="k.icon" class="w-4 h-4" :class="k.iconColor" />
+        </div>
+        <div>
+          <div v-if="loading" class="skel-val" />
+          <p v-else class="kpi-val">{{ k.value }}</p>
+          <p class="kpi-label">{{ k.label }}</p>
         </div>
       </div>
     </div>
 
-    <!-- Tabela de escolas -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold text-gray-900">Escolas — status de simulados</h3>
-        <NuxtLink to="/dashboard/root/escolas" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-          Gerenciar <Icon name="lucide:arrow-right" class="w-3 h-3" />
-        </NuxtLink>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-gray-400 text-xs uppercase tracking-wider border-b border-gray-100">
-              <th class="pb-3 font-medium">Escola</th>
-              <th class="pb-3 font-medium">Simulados</th>
-              <th class="pb-3 font-medium">Alunos</th>
-              <th class="pb-3 font-medium">Último simulado</th>
-              <th class="pb-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-50">
-            <tr v-for="escola in escolas" :key="escola.id" class="hover:bg-gray-50">
-              <td class="py-3 font-medium text-gray-900">{{ escola.nome }}</td>
-              <td class="py-3 text-gray-600">{{ escola.simulados }}</td>
-              <td class="py-3 text-gray-600">{{ escola.alunos }}</td>
-              <td class="py-3 text-gray-400">{{ escola.ultimoSimulado }}</td>
-              <td class="py-3">
-                <span class="inline-block text-xs font-medium px-2 py-0.5 rounded-full" :class="escola.badgeClass">
-                  {{ escola.status }}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <!-- Acesso rápido a todas as áreas -->
+    <div class="section-title fade-in" :class="{ ready: mounted }" style="--d:.1s">Acesso rápido</div>
+
+    <div class="shortcuts-grid fade-in" :class="{ ready: mounted }" style="--d:.12s">
+      <NuxtLink v-for="s in shortcuts" :key="s.to" :to="s.to" class="shortcut-card">
+        <div class="shortcut-icon" :class="s.iconBg">
+          <Icon :name="s.icon" class="w-5 h-5" :class="s.iconColor" />
+        </div>
+        <div class="shortcut-info">
+          <p class="shortcut-label">{{ s.label }}</p>
+          <p class="shortcut-sub">{{ s.sub }}</p>
+        </div>
+        <Icon name="lucide:arrow-right" class="shortcut-arrow" />
+      </NuxtLink>
     </div>
+
+    <!-- Simulados recentes -->
+    <div class="section-title fade-in" :class="{ ready: mounted }" style="--d:.16s">Simulados recentes</div>
+    <div v-if="loading" class="list fade-in" :class="{ ready: mounted }" style="--d:.18s">
+      <div v-for="i in 3" :key="i" class="skel-row" :style="`--i:${i}`" />
+    </div>
+    <div v-else-if="!exams.length" class="empty-card fade-in" :class="{ ready: mounted }" style="--d:.18s">
+      <Icon name="lucide:file-text" class="w-8 h-8 text-gray-200" />
+      <p>Nenhum simulado cadastrado</p>
+    </div>
+    <div v-else class="list fade-in" :class="{ ready: mounted }" style="--d:.18s">
+      <NuxtLink v-for="e in exams.slice(0,5)" :key="e.id"
+        :to="`/dashboard/coordenador/simulados/${e.id}`"
+        class="exam-row">
+        <span class="status-badge" :class="statusBadge(e.status)">{{ statusLabel(e.status) }}</span>
+        <span class="exam-title">{{ e.title }}</span>
+        <Icon name="lucide:arrow-right" class="exam-arrow" />
+      </NuxtLink>
+    </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard' })
-const { user } = useAuth()
+const { get } = useApi()
+const mounted = ref(false)
+const loading  = ref(true)
 
-const stats = [
-  { label: 'Total de escolas', value: '142', change: '+3 este mês', changePositive: true, icon: 'lucide:school', iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-  { label: 'Simulados ativos', value: '38', change: '+12 esta semana', changePositive: true, icon: 'lucide:file-text', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-  { label: 'Total de alunos', value: '84.201', change: 'Rede municipal', changePositive: null, icon: 'lucide:users', iconBg: 'bg-purple-50', iconColor: 'text-purple-600' },
-  { label: 'Questões cadastradas', value: '2.847', change: '+94 este mês', changePositive: true, icon: 'lucide:help-circle', iconBg: 'bg-orange-50', iconColor: 'text-orange-500' },
+const totalUsers    = ref(0)
+const totalClasses  = ref(0)
+const totalStudents = ref(0)
+const exams         = ref<any[]>([])
+
+const kpis = computed(() => [
+  { label:'Usuários',  value:totalUsers.value,    icon:'lucide:users',      iconBg:'bg-violet-50', iconColor:'text-violet-500' },
+  { label:'Turmas',    value:totalClasses.value,  icon:'lucide:school',     iconBg:'bg-blue-50',   iconColor:'text-blue-500'   },
+  { label:'Alunos',    value:totalStudents.value, icon:'lucide:graduation-cap',iconBg:'bg-emerald-50',iconColor:'text-emerald-500'},
+  { label:'Simulados', value:exams.value.length,  icon:'lucide:file-text',  iconBg:'bg-amber-50',  iconColor:'text-amber-500'  },
+])
+
+const shortcuts = [
+  { to:'/dashboard/coordenador/turmas',       label:'Turmas',        sub:'Gerenciar turmas e alunos',         icon:'lucide:users',          iconBg:'bg-blue-50',   iconColor:'text-blue-500'   },
+  { to:'/dashboard/coordenador/simulados',    label:'Simulados',     sub:'Criar e acompanhar simulados',      icon:'lucide:file-text',      iconBg:'bg-indigo-50', iconColor:'text-indigo-500' },
+  { to:'/dashboard/coordenador/professores',  label:'Professores',   sub:'Cadastro e vínculos',               icon:'lucide:user-check',     iconBg:'bg-emerald-50',iconColor:'text-emerald-500'},
+  { to:'/dashboard/coordenador/disciplinas',  label:'Disciplinas',   sub:'Matriz curricular',                 icon:'lucide:book-open',      iconBg:'bg-teal-50',   iconColor:'text-teal-500'   },
+  { to:'/dashboard/coordenador/questoes',     label:'Questões',      sub:'Banco de questões',                 icon:'lucide:help-circle',    iconBg:'bg-amber-50',  iconColor:'text-amber-500'  },
+  { to:'/dashboard/coordenador/relatorios',   label:'Relatórios',    sub:'Resultados e progresso',            icon:'lucide:bar-chart-2',    iconBg:'bg-rose-50',   iconColor:'text-rose-500'   },
 ]
 
-const recentActivity = [
-  { id: 1, icon: 'lucide:file-plus', iconBg: 'bg-blue-50', iconColor: 'text-blue-600', message: 'Novo simulado criado na EMEF João Pessoa', time: 'há 2 horas' },
-  { id: 2, icon: 'lucide:user-plus', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', message: '3 professores cadastrados na rede', time: 'há 5 horas' },
-  { id: 3, icon: 'lucide:alert-circle', iconBg: 'bg-amber-50', iconColor: 'text-amber-600', message: 'EMEF Santana sem simulados este mês', time: 'há 1 dia' },
-  { id: 4, icon: 'lucide:check-circle', iconBg: 'bg-green-50', iconColor: 'text-green-600', message: 'Relatório mensal gerado com sucesso', time: 'há 2 dias' },
-]
+function statusLabel(s: string) { return ({collecting:'Em coleta',review:'Em revisão',locked:'Travado',generated:'Gerado',published:'Publicado',draft:'Rascunho'} as any)[s]??s }
+function statusBadge(s: string) { return ({collecting:'sb-amber',review:'sb-purple',locked:'sb-blue',generated:'sb-indigo',published:'sb-emerald',draft:'sb-gray'} as any)[s]??'sb-gray' }
 
-const escolas = [
-  { id: 1, nome: 'EMEF Prof. João Pessoa', simulados: 8, alunos: 620, ultimoSimulado: '02/03/2026', status: 'Ativo', badgeClass: 'bg-green-100 text-green-700' },
-  { id: 2, nome: 'EMEF Santana', simulados: 2, alunos: 480, ultimoSimulado: '10/01/2026', status: 'Inativo', badgeClass: 'bg-red-100 text-red-700' },
-  { id: 3, nome: 'EMEF Maria Clara', simulados: 5, alunos: 530, ultimoSimulado: '28/02/2026', status: 'Ativo', badgeClass: 'bg-green-100 text-green-700' },
-  { id: 4, nome: 'EMEF Dom Pedro II', simulados: 3, alunos: 390, ultimoSimulado: '15/02/2026', status: 'Pendente', badgeClass: 'bg-yellow-100 text-yellow-700' },
-]
+onMounted(async () => {
+  await nextTick(); setTimeout(() => { mounted.value = true }, 30)
+  const [usersRes, classesRes, studentsRes, examsRes] = await Promise.allSettled([
+    get<any[]>('/school/teachers').then(r => r.length),
+    get<any[]>('/school/classes').then(r => r.length),
+    get<any[]>('/school/students/').then(r => r.length),
+    get<any[]>('/exams/'),
+  ])
+  if (usersRes.status==='fulfilled')   totalUsers.value    = usersRes.value as number
+  if (classesRes.status==='fulfilled') totalClasses.value  = classesRes.value as number
+  if (studentsRes.status==='fulfilled')totalStudents.value = studentsRes.value as number
+  if (examsRes.status==='fulfilled')   exams.value         = examsRes.value as any[]
+  loading.value = false
+})
 </script>
+
+<style scoped>
+.page { display:flex; flex-direction:column; gap:1.25rem; padding-bottom:2rem; }
+.fade-in { opacity:0; transform:translateY(10px); transition:opacity .35s ease var(--d,.0s), transform .35s ease var(--d,.0s); }
+.fade-in.ready { opacity:1; transform:translateY(0); }
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.page-title  { font-size:1.35rem; font-weight:800; color:#111827; margin:0 0 .2rem; }
+.page-sub    { font-size:.8rem; color:#9ca3af; margin:0; }
+.root-badge  { display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .875rem; background:#f3e8ff; border:1px solid #e9d5ff; border-radius:9999px; font-size:.72rem; font-weight:700; color:#7c3aed; flex-shrink:0; }
+.kpi-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:.75rem; }
+@media(min-width:640px) { .kpi-grid { grid-template-columns:repeat(4,1fr); } }
+.kpi-card { background:white; border:1px solid #f3f4f6; border-radius:1rem; padding:1rem; display:flex; align-items:center; gap:.875rem; }
+.kpi-icon  { width:2.25rem; height:2.25rem; border-radius:.625rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.kpi-val   { font-size:1.5rem; font-weight:800; color:#111827; line-height:1; }
+.kpi-label { font-size:.68rem; color:#9ca3af; margin-top:.2rem; }
+.skel-val  { width:3rem; height:1.5rem; background:#f3f4f6; border-radius:.375rem; animation:shimmer 1.5s infinite; margin-bottom:.2rem; }
+.section-title { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#9ca3af; }
+.shortcuts-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.625rem; }
+.shortcut-card { display:flex; align-items:center; gap:.875rem; padding:.875rem 1rem; background:white; border:1px solid #f3f4f6; border-radius:1rem; text-decoration:none; transition:all .13s; }
+.shortcut-card:hover { border-color:#e5e7eb; box-shadow:0 2px 8px rgba(0,0,0,.05); transform:translateY(-1px); }
+.shortcut-icon { width:2.5rem; height:2.5rem; border-radius:.75rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.shortcut-info { flex:1; min-width:0; }
+.shortcut-label { font-size:.8rem; font-weight:700; color:#111827; }
+.shortcut-sub   { font-size:.68rem; color:#9ca3af; margin-top:.1rem; }
+.shortcut-arrow { width:.875rem; height:.875rem; color:#d1d5db; flex-shrink:0; transition:transform .13s, color .13s; }
+.shortcut-card:hover .shortcut-arrow { color:#9ca3af; transform:translateX(2px); }
+.list { display:flex; flex-direction:column; gap:.5rem; }
+.skel-row { height:3rem; background:white; border:1px solid #f3f4f6; border-radius:.875rem; animation:shimmer 1.5s infinite; animation-delay:calc(var(--i,0)*80ms); }
+.empty-card { display:flex; flex-direction:column; align-items:center; gap:.5rem; padding:3rem 1rem; background:white; border:2px dashed #f3f4f6; border-radius:1rem; }
+.empty-card p { font-size:.8rem; color:#9ca3af; margin:0; }
+.exam-row { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background:white; border:1px solid #f3f4f6; border-radius:.875rem; text-decoration:none; transition:all .13s; }
+.exam-row:hover { border-color:#e5e7eb; transform:translateX(2px); }
+.exam-title { flex:1; font-size:.8rem; font-weight:600; color:#374151; }
+.exam-arrow { width:.875rem; height:.875rem; color:#d1d5db; }
+.status-badge { font-size:.62rem; font-weight:700; padding:.15rem .45rem; border-radius:9999px; flex-shrink:0; }
+.sb-amber   { background:#fef3c7; color:#92400e; }
+.sb-purple  { background:#ede9fe; color:#5b21b6; }
+.sb-blue    { background:#dbeafe; color:#1e40af; }
+.sb-indigo  { background:#e0e7ff; color:#3730a3; }
+.sb-emerald { background:#d1fae5; color:#065f46; }
+.sb-gray    { background:#f3f4f6; color:#6b7280; }
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.45} }
+</style>
