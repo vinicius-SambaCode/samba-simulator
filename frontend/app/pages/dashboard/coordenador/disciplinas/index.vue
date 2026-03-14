@@ -1,232 +1,91 @@
-<!-- pages/dashboard/coordenador/disciplinas/index.vue -->
 <template>
-  <div class="space-y-5">
+  <div class="page">
 
-    <!-- Header -->
-    <div class="flex items-center justify-between animate-fade-in">
+    <div class="page-header fade-in" :class="{ ready: mounted }">
       <div>
-        <h2 class="text-xl font-black text-gray-900 tracking-tight">Disciplinas</h2>
-        <p class="text-sm text-gray-400 mt-0.5">
-          {{ disciplines.length }} disciplina{{ disciplines.length !== 1 ? 's' : '' }} cadastrada{{ disciplines.length !== 1 ? 's' : '' }}
-        </p>
+        <h1 class="page-title">Disciplinas</h1>
+        <p class="page-sub">{{ disciplines.length }} disciplina{{ disciplines.length!==1?'s':'' }} cadastrada{{ disciplines.length!==1?'s':'' }}</p>
       </div>
-      <button
-        class="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-bold rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-95"
-        @click="abrirModalCriar">
-        <Icon name="lucide:plus" class="w-4 h-4" />
-        Nova disciplina
+      <button class="btn-primary" @click="abrirModalCriar">
+        <Icon name="lucide:plus" class="w-4 h-4" /> Nova disciplina
       </button>
     </div>
 
-    <!-- Busca -->
-    <div class="relative animate-fade-up" style="animation-delay:40ms">
-      <Icon name="lucide:search" class="w-4 h-4 text-gray-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
-      <input v-model="busca"
-        class="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all bg-white"
-        placeholder="Buscar disciplina..." />
-      <button v-if="busca" class="absolute right-3 top-1/2 -translate-y-1/2" @click="busca = ''">
-        <Icon name="lucide:x" class="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 transition-colors" />
+    <div class="search-bar fade-in" :class="{ ready: mounted }" style="--d:.05s">
+      <Icon name="lucide:search" class="search-icon" />
+      <input v-model="busca" placeholder="Buscar disciplina..." class="search-input" />
+      <button v-if="busca" class="search-clear" @click="busca = ''">
+        <Icon name="lucide:x" class="w-3.5 h-3.5" />
       </button>
     </div>
 
-    <!-- Skeleton -->
-    <div v-if="loading" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      <div v-for="i in 8" :key="i"
-        class="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse"
-        :style="`animation-delay:${i * 40}ms`" />
+    <div v-if="loading" class="disc-grid fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <div v-for="i in 8" :key="i" class="skel-card" :style="`--i:${i}`" />
     </div>
 
-    <!-- Empty -->
-    <div v-else-if="disciplinasFiltradas.length === 0"
-      class="flex flex-col items-center justify-center py-28 bg-white rounded-2xl border-2 border-dashed border-gray-100 animate-fade-in">
-      <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-        <Icon name="lucide:book-open" class="w-6 h-6 text-gray-200" />
-      </div>
-      <p class="text-sm font-bold text-gray-400">
-        {{ busca ? 'Nenhuma disciplina encontrada' : 'Nenhuma disciplina cadastrada' }}
-      </p>
-      <p class="text-xs text-gray-300 mt-1">
-        {{ busca ? 'Tente outro termo' : 'Crie a primeira disciplina' }}
-      </p>
-      <button v-if="!busca"
-        class="mt-4 flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-700 transition-all"
-        @click="abrirModalCriar">
-        <Icon name="lucide:plus" class="w-4 h-4" />
-        Nova disciplina
+    <div v-else-if="!disciplinasFiltradas.length" class="empty-state fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <Icon name="lucide:book-open" class="w-10 h-10 text-gray-200" />
+      <p>{{ busca ? 'Nenhuma disciplina encontrada' : 'Nenhuma disciplina cadastrada' }}</p>
+      <button v-if="!busca" class="btn-primary mt-3" @click="abrirModalCriar">
+        <Icon name="lucide:plus" class="w-4 h-4" /> Nova disciplina
       </button>
     </div>
 
-    <!-- Grid de disciplinas -->
-    <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-fade-up" style="animation-delay:60ms">
-      <div
-        v-for="(disc, idx) in disciplinasFiltradas" :key="disc.id"
-        class="group bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-4 hover:border-gray-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-up"
-        :style="`animation-delay:${80 + idx * 30}ms`">
-
-        <!-- Ícone + nome -->
-        <div class="flex items-start justify-between gap-2">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white font-black text-sm shadow-sm"
-              :style="`background-color: ${corDisciplina(idx)}`">
-              {{ iniciais(disc.name) }}
-            </div>
-            <div class="min-w-0">
-              <p class="text-sm font-black text-gray-900 truncate leading-tight">{{ disc.name }}</p>
-              <p class="text-[10px] text-gray-400 mt-0.5">#{{ disc.id }}</p>
-            </div>
-          </div>
-
-          <!-- Menu de ações -->
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
-            <button
-              class="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-              title="Editar"
-              @click="abrirModalEditar(disc)">
-              <Icon name="lucide:pencil" class="w-3.5 h-3.5" />
-            </button>
-            <button
-              class="p-1.5 rounded-lg transition-colors"
-              :class="confirmandoId === disc.id
-                ? 'text-red-600 bg-red-50'
-                : 'text-gray-300 hover:text-red-500 hover:bg-red-50'"
-              :title="confirmandoId === disc.id ? 'Confirmar exclusão' : 'Excluir'"
-              @click="clicarExcluir(disc.id)">
-              <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
-            </button>
-            <button v-if="confirmandoId === disc.id"
-              class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              title="Cancelar"
-              @click.stop="confirmandoId = null">
-              <Icon name="lucide:x" class="w-3.5 h-3.5" />
-            </button>
-          </div>
+    <div v-else class="disc-grid fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <div v-for="(d, idx) in disciplinasFiltradas" :key="d.id" class="disc-card group" :style="`--i:${idx}`">
+        <div class="disc-icon" :class="discColors[idx % discColors.length]">
+          <Icon name="lucide:book-open" class="w-4 h-4" />
         </div>
-
-        <!-- Confirmação de exclusão -->
-        <Transition name="slide-down">
-          <div v-if="confirmandoId === disc.id"
-            class="px-3 py-2 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between">
-            <span class="text-xs text-red-700 font-medium">Confirmar exclusão?</span>
-            <div class="flex items-center gap-2">
-              <button class="text-xs font-bold text-red-600 hover:text-red-700 transition-colors"
-                @click="excluirDisciplina(disc.id)">Excluir</button>
-              <button class="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                @click="confirmandoId = null">Cancelar</button>
-            </div>
-          </div>
-        </Transition>
-
+        <p class="disc-name">{{ d.name }}</p>
+        <div class="disc-actions">
+          <button class="icon-btn" title="Editar" @click="abrirModalEditar(d)">
+            <Icon name="lucide:pencil" class="w-3.5 h-3.5" />
+          </button>
+          <button class="icon-btn icon-btn--del" title="Excluir" @click="confirmarExclusao(d)">
+            <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- ================================================ -->
-    <!-- MODAL: Criar / Editar disciplina                 -->
-    <!-- ================================================ -->
+    <!-- Modal criar/editar -->
     <Transition name="modal">
-      <div v-if="showModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-        @click.self="fecharModal">
-
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-
-          <!-- Header do modal -->
-          <div class="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              :class="editandoId ? 'bg-blue-50' : 'bg-emerald-50'">
-              <Icon :name="editandoId ? 'lucide:pencil' : 'lucide:plus-circle'"
-                class="w-4 h-4"
-                :class="editandoId ? 'text-blue-600' : 'text-emerald-600'" />
-            </div>
-            <div class="flex-1">
-              <h3 class="font-black text-gray-900 text-sm">
-                {{ editandoId ? 'Editar disciplina' : 'Nova disciplina' }}
-              </h3>
-              <p class="text-xs text-gray-400 mt-0.5">
-                {{ editandoId ? 'Altere o nome da disciplina' : 'Preencha o nome da disciplina' }}
-              </p>
-            </div>
-            <button
-              class="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              @click="fecharModal">
-              <Icon name="lucide:x" class="w-4 h-4" />
-            </button>
+      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-box">
+          <h3 class="modal-title">{{ editando ? 'Editar disciplina' : 'Nova disciplina' }}</h3>
+          <div class="field">
+            <label class="field-label">Nome</label>
+            <input v-model="form.name" placeholder="Ex: Matemática" class="field-input"
+              @keydown.enter="salvar" />
           </div>
-
-          <!-- Formulário -->
-          <div class="px-6 py-5 space-y-4">
-            <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                Nome da disciplina <span class="text-red-400">*</span>
-              </label>
-              <input
-                ref="inputNome"
-                v-model="form.name"
-                type="text"
-                placeholder="Ex: Matemática, Física, Programação..."
-                class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
-                :class="{ 'border-red-300 focus:ring-red-400': erro }"
-                @keyup.enter="salvar"
-                @input="erro = ''" />
-              <Transition name="slide-down">
-                <p v-if="erro" class="mt-1.5 text-xs text-red-500 flex items-center gap-1">
-                  <Icon name="lucide:alert-circle" class="w-3 h-3" />
-                  {{ erro }}
-                </p>
-              </Transition>
-            </div>
-
-            <!-- Exemplos rápidos (só na criação) -->
-            <div v-if="!editandoId">
-              <p class="text-xs text-gray-400 mb-2">Sugestões rápidas:</p>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  v-for="sugestao in sugestoes.filter(s => !disciplines.some(d => d.name === s))"
-                  :key="sugestao"
-                  class="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all"
-                  @click="form.name = sugestao; erro = ''">
-                  {{ sugestao }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Rodapé -->
-          <div class="px-6 pb-5 flex items-center justify-end gap-3">
-            <button
-              class="px-4 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
-              @click="fecharModal">
-              Cancelar
-            </button>
-            <button
-              :disabled="!form.name.trim() || salvando"
-              class="flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-xl transition-all duration-150 active:scale-95"
-              :class="form.name.trim() && !salvando
-                ? editandoId
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
-                  : 'bg-gray-900 hover:bg-gray-700 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
-              @click="salvar">
-              <Icon v-if="salvando" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
-              <Icon v-else :name="editandoId ? 'lucide:check' : 'lucide:plus'" class="w-4 h-4" />
-              {{ salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Criar disciplina' }}
+          <p v-if="formError" class="error-msg">{{ formError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeModal">Cancelar</button>
+            <button class="btn-primary" :disabled="!form.name.trim() || saving" @click="salvar">
+              {{ saving ? 'Salvando...' : editando ? 'Salvar' : 'Criar' }}
             </button>
           </div>
         </div>
       </div>
     </Transition>
 
-    <!-- Toast -->
-    <Transition name="toast">
-      <div v-if="toast.show"
-        class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg text-sm font-medium min-w-[220px]"
-        :class="toast.type === 'success' ? 'bg-gray-900 text-white'
-          : toast.type === 'error' ? 'bg-red-600 text-white'
-          : 'bg-blue-600 text-white'">
-        <Icon
-          :name="toast.type === 'success' ? 'lucide:check-circle-2'
-            : toast.type === 'error' ? 'lucide:alert-circle' : 'lucide:info'"
-          class="w-4 h-4 flex-shrink-0" />
-        {{ toast.message }}
+    <!-- Modal excluir -->
+    <Transition name="modal">
+      <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal=false">
+        <div class="modal-box">
+          <div class="modal-icon-wrap bg-red-50">
+            <Icon name="lucide:trash-2" class="w-5 h-5 text-red-500" />
+          </div>
+          <h3 class="modal-title">Excluir "{{ deletingDisc?.name }}"?</h3>
+          <p class="modal-body">Questões vinculadas a esta disciplina podem ser afetadas.</p>
+          <p v-if="deleteError" class="error-msg">{{ deleteError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showDeleteModal=false">Cancelar</button>
+            <button class="btn-danger" :disabled="deleting" @click="excluir">
+              {{ deleting ? 'Excluindo...' : 'Excluir' }}
+            </button>
+          </div>
+        </div>
       </div>
     </Transition>
 
@@ -234,179 +93,110 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'dashboard', middleware: 'auth' })
-
+definePageMeta({ layout: 'dashboard' })
 const { get, post, put, delete: deleteReq } = useApi()
+const mounted = ref(false)
 
-// ── Estado ──
-const disciplines  = ref<any[]>([])
-const loading      = ref(true)
-const busca        = ref('')
-const confirmandoId = ref<number | null>(null)
-const showModal    = ref(false)
-const editandoId   = ref<number | null>(null)
-const salvando     = ref(false)
-const erro         = ref('')
-const inputNome    = ref<HTMLInputElement | null>(null)
-
+const disciplines     = ref<any[]>([])
+const loading         = ref(true)
+const busca           = ref('')
+const showModal       = ref(false); const formError  = ref(''); const saving  = ref(false)
+const showDeleteModal = ref(false); const deleteError = ref(''); const deleting = ref(false)
+const editando        = ref<any>(null); const deletingDisc = ref<any>(null)
 const form = reactive({ name: '' })
 
-const toast = reactive({ show: false, message: '', type: 'success' as 'success' | 'error' | 'info' })
-let toastTimer: ReturnType<typeof setTimeout> | null = null
-
-// Sugestões de disciplinas comuns
-const sugestoes = [
-  'Matemática', 'Física', 'Química', 'Biologia',
-  'Língua Portuguesa', 'História', 'Geografia',
-  'Filosofia', 'Sociologia', 'Inglês',
-  'Educação Física', 'Arte', 'Programação',
-  'Redação',
+const discColors = [
+  'bg-blue-100 text-blue-600', 'bg-violet-100 text-violet-600', 'bg-emerald-100 text-emerald-600',
+  'bg-amber-100 text-amber-600', 'bg-rose-100 text-rose-600', 'bg-teal-100 text-teal-600',
+  'bg-indigo-100 text-indigo-600', 'bg-orange-100 text-orange-600',
 ]
-
-// Paleta de cores para os cards
-const cores = [
-  '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B',
-  '#10B981', '#EF4444', '#06B6D4', '#6366F1',
-  '#F97316', '#14B8A6', '#84CC16', '#A855F7',
-]
-
-function corDisciplina(idx: number): string {
-  return cores[idx % cores.length]
-}
-
-function iniciais(nome: string): string {
-  return nome.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-}
 
 const disciplinasFiltradas = computed(() => {
-  if (!busca.value.trim()) return disciplines.value
+  if (!busca.value) return disciplines.value
   const q = busca.value.toLowerCase()
   return disciplines.value.filter(d => d.name.toLowerCase().includes(q))
 })
 
-// ── Toast ──
-function showToast(message: string, type: 'success' | 'error' | 'info' = 'success') {
-  if (toastTimer) clearTimeout(toastTimer)
-  toast.message = message
-  toast.type    = type
-  toast.show    = true
-  toastTimer = setTimeout(() => { toast.show = false }, 3000)
-}
+function abrirModalCriar() { editando.value=null; form.name=''; formError.value=''; showModal.value=true }
+function abrirModalEditar(d: any) { editando.value=d; form.name=d.name; formError.value=''; showModal.value=true }
+function closeModal() { showModal.value=false; editando.value=null; form.name=''; formError.value='' }
+function confirmarExclusao(d: any) { deletingDisc.value=d; deleteError.value=''; showDeleteModal.value=true }
 
-// ── Fetch ──
-onMounted(async () => {
-  try {
-    disciplines.value = await get<any[]>('/disciplines/')
-  } catch {
-    showToast('Erro ao carregar disciplinas', 'error')
-  } finally {
-    loading.value = false
-  }
-})
-
-// ── Modal ──
-function abrirModalCriar() {
-  editandoId.value = null
-  form.name        = ''
-  erro.value       = ''
-  showModal.value  = true
-  nextTick(() => inputNome.value?.focus())
-}
-
-function abrirModalEditar(disc: any) {
-  editandoId.value = disc.id
-  form.name        = disc.name
-  erro.value       = ''
-  showModal.value  = true
-  nextTick(() => inputNome.value?.focus())
-}
-
-function fecharModal() {
-  showModal.value  = false
-  editandoId.value = null
-  form.name        = ''
-  erro.value       = ''
-}
-
-// ── CRUD ──
 async function salvar() {
-  if (!form.name.trim() || salvando.value) return
-  salvando.value = true
-  erro.value     = ''
-
+  if (!form.name.trim()) return
+  saving.value=true; formError.value=''
   try {
-    if (editandoId.value) {
-      const updated = await put<any>(`/disciplines/${editandoId.value}/`, { name: form.name.trim() })
-      const idx = disciplines.value.findIndex(d => d.id === editandoId.value)
-      if (idx !== -1) disciplines.value[idx] = updated
-      showToast('Disciplina atualizada!')
+    if (editando.value) {
+      await put<any>(`/disciplines/${editando.value.id}/`, { name:form.name.trim() })
+      const idx=disciplines.value.findIndex(d=>d.id===editando.value.id)
+      if (idx!==-1) disciplines.value[idx]={...disciplines.value[idx],name:form.name.trim()}
     } else {
-      const created = await post<any>('/disciplines/', { name: form.name.trim() })
-      disciplines.value = [...disciplines.value, created]
-      showToast('Disciplina criada!')
+      const created=await post<any>('/disciplines/',{name:form.name.trim()})
+      disciplines.value.push(created)
     }
-    fecharModal()
-  } catch (e: any) {
-    const msg = e?.data?.detail ?? e?.message ?? 'Erro ao salvar'
-    erro.value = msg.includes('já existe') ? 'Já existe uma disciplina com esse nome.' : msg
-  } finally {
-    salvando.value = false
-  }
+    closeModal()
+  } catch (e:any) { formError.value=e?.data?.detail??e?.message??'Erro ao salvar.' } finally { saving.value=false }
 }
-
-function clicarExcluir(id: number) {
-  if (confirmandoId.value === id) {
-    excluirDisciplina(id)
-  } else {
-    confirmandoId.value = id
-    setTimeout(() => {
-      if (confirmandoId.value === id) confirmandoId.value = null
-    }, 3000)
-  }
-}
-
-async function excluirDisciplina(id: number) {
-  confirmandoId.value = null
+async function excluir() {
+  if (!deletingDisc.value) return
+  deleting.value=true; deleteError.value=''
   try {
-    await deleteReq(`/disciplines/${id}/`)
-    disciplines.value = disciplines.value.filter(d => d.id !== id)
-    showToast('Disciplina excluída.')
-  } catch (e: any) {
-    const msg = e?.data?.detail ?? e?.message ?? 'Erro ao excluir'
-    showToast(msg.includes('foreign') || msg.includes('violat')
-      ? 'Não é possível excluir: disciplina em uso por professores ou simulados.'
-      : msg, 'error')
-  }
+    await deleteReq(`/disciplines/${deletingDisc.value.id}/`)
+    disciplines.value=disciplines.value.filter(d=>d.id!==deletingDisc.value.id)
+    showDeleteModal.value=false
+  } catch (e:any) { deleteError.value=e?.data?.detail??'Erro ao excluir.' } finally { deleting.value=false }
 }
+
+onMounted(async () => {
+  await nextTick(); setTimeout(()=>{mounted.value=true},30)
+  try { disciplines.value=await get<any[]>('/disciplines/') } catch { disciplines.value=[] } finally { loading.value=false }
+})
 </script>
 
 <style scoped>
-/* Fade in */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in  { animation: fadeIn  0.3s ease both; }
-.animate-fade-up  { animation: fadeUp  0.3s ease both; }
-
-/* Modal */
-.modal-enter-active { transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-.modal-leave-active { transition: all 0.15s ease; }
-.modal-enter-from   { opacity: 0; transform: scale(0.92); }
-.modal-leave-to     { opacity: 0; transform: scale(0.96); }
-
-/* Slide down */
-.slide-down-enter-active, .slide-down-leave-active { transition: all 0.2s ease; overflow: hidden; }
-.slide-down-enter-from, .slide-down-leave-to { opacity: 0; max-height: 0; }
-.slide-down-enter-to, .slide-down-leave-from { max-height: 80px; }
-
-/* Toast */
-.toast-enter-active { transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-.toast-leave-active { transition: all 0.2s ease; }
-.toast-enter-from   { opacity: 0; transform: translateY(16px) scale(0.95); }
-.toast-leave-to     { opacity: 0; transform: translateY(8px); }
+.page { display:flex; flex-direction:column; gap:1.25rem; padding-bottom:2rem; }
+.fade-in { opacity:0; transform:translateY(10px); transition:opacity .35s ease var(--d,.0s), transform .35s ease var(--d,.0s); }
+.fade-in.ready { opacity:1; transform:translateY(0); }
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.page-title  { font-size:1.35rem; font-weight:800; color:#111827; margin:0 0 .2rem; }
+.page-sub    { font-size:.8rem; color:#9ca3af; margin:0; }
+.search-bar  { position:relative; }
+.search-icon { position:absolute; left:.875rem; top:50%; transform:translateY(-50%); width:.875rem; height:.875rem; color:#d1d5db; }
+.search-input { width:100%; padding:.625rem .875rem .625rem 2.5rem; border:1px solid #e5e7eb; border-radius:.875rem; font-size:.8rem; background:white; outline:none; transition:border-color .13s; }
+.search-input:focus { border-color:#93c5fd; box-shadow:0 0 0 3px #eff6ff; }
+.search-clear { position:absolute; right:.875rem; top:50%; transform:translateY(-50%); color:#d1d5db; }
+.search-clear:hover { color:#6b7280; }
+.disc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:.625rem; }
+.skel-card { height:6rem; background:white; border:1px solid #f3f4f6; border-radius:1rem; animation:shimmer 1.5s ease-in-out infinite; animation-delay:calc(var(--i,0)*50ms); }
+.empty-state { display:flex; flex-direction:column; align-items:center; gap:.5rem; padding:4rem 1rem; background:white; border:2px dashed #f3f4f6; border-radius:1rem; text-align:center; }
+.empty-state p { font-size:.8rem; color:#9ca3af; margin:0; }
+.mt-3 { margin-top:.75rem; }
+.disc-card { background:white; border:1px solid #f3f4f6; border-radius:1rem; padding:1rem; display:flex; flex-direction:column; gap:.625rem; position:relative; transition:border-color .15s, box-shadow .15s; animation:card-in .35s ease both; animation-delay:calc(var(--i,0)*40ms); }
+.disc-card:hover { border-color:#e5e7eb; box-shadow:0 2px 10px rgba(0,0,0,.05); }
+@keyframes card-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+.disc-icon { width:2.5rem; height:2.5rem; border-radius:.75rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.disc-name { font-size:.8rem; font-weight:700; color:#111827; line-height:1.3; flex:1; }
+.disc-actions { display:flex; gap:.3rem; opacity:0; transition:opacity .15s; }
+.disc-card:hover .disc-actions { opacity:1; }
+.icon-btn    { width:1.75rem; height:1.75rem; border-radius:.5rem; border:1px solid #e5e7eb; background:white; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#9ca3af; transition:all .13s; }
+.icon-btn:hover      { background:#f9fafb; color:#374151; border-color:#d1d5db; }
+.icon-btn--del:hover { background:#fef2f2; color:#ef4444; border-color:#fecaca; }
+.btn-primary,.btn-cancel,.btn-danger { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem 1rem; font-size:.78rem; font-weight:700; border-radius:.75rem; cursor:pointer; white-space:nowrap; transition:all .13s; border:none; }
+.btn-primary  { background:#111827; color:white; } .btn-primary:hover:not(:disabled) { background:#1f2937; } .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-cancel   { background:white; color:#6b7280; border:1px solid #e5e7eb; } .btn-cancel:hover { background:#f9fafb; }
+.btn-danger   { background:#ef4444; color:white; } .btn-danger:hover:not(:disabled) { background:#dc2626; }
+.field       { display:flex; flex-direction:column; gap:.375rem; }
+.field-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; }
+.field-input { padding:.5rem .75rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.8rem; color:#111827; outline:none; }
+.field-input:focus { border-color:#93c5fd; box-shadow:0 0 0 3px #eff6ff; }
+.error-msg  { font-size:.72rem; color:#ef4444; font-weight:600; }
+.modal-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:1rem; background:rgba(0,0,0,.25); backdrop-filter:blur(2px); }
+.modal-box { background:white; border-radius:1rem; padding:1.5rem; width:100%; max-width:22rem; display:flex; flex-direction:column; gap:.875rem; }
+.modal-title { font-size:1rem; font-weight:800; color:#111827; margin:0; }
+.modal-body  { font-size:.8rem; color:#6b7280; margin:0; line-height:1.5; }
+.modal-actions { display:flex; gap:.5rem; }
+.modal-icon-wrap { width:2.5rem; height:2.5rem; border-radius:.75rem; display:flex; align-items:center; justify-content:center; }
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.45} }
+.modal-enter-active { transition:opacity .18s ease; } .modal-leave-active { transition:opacity .15s ease; }
+.modal-enter-from, .modal-leave-to { opacity:0; }
 </style>

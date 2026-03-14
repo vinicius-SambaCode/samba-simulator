@@ -1,477 +1,154 @@
-<!-- pages/dashboard/coordenador/turmas/index.vue -->
 <template>
-  <div class="space-y-5">
+  <div class="page">
 
-    <!-- Header -->
-    <div class="flex items-center justify-between animate-fade-in">
+    <div class="page-header fade-in" :class="{ ready: mounted }">
       <div>
-        <h2 class="text-xl font-black text-gray-900 tracking-tight">Turmas</h2>
-        <p class="text-sm text-gray-400 mt-0.5">{{ classes.length }} turma{{ classes.length !== 1 ? 's' : '' }} cadastrada{{ classes.length !== 1 ? 's' : '' }}</p>
+        <h1 class="page-title">Turmas</h1>
+        <p class="page-sub">
+          <span v-if="loading" class="skel-line" />
+          <span v-else>{{ classes.length }} turma{{ classes.length!==1?'s':'' }} · {{ totalAlunos }} aluno{{ totalAlunos!==1?'s':'' }}</span>
+        </p>
       </div>
-      <div class="flex items-center gap-2">
-        <button
-          class="flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-bold rounded-xl transition-all duration-200"
-          @click="showImportModal = true">
-          <Icon name="lucide:upload" class="w-4 h-4" />
-          <span class="hidden sm:inline">Importar CSV</span>
+      <div class="flex gap-2">
+        <button class="btn-secondary" @click="showImportModal = true">
+          <Icon name="lucide:upload" class="w-4 h-4" /> <span class="hidden sm:inline">Importar CSV</span>
         </button>
-        <button
-          class="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-bold rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-95"
-          @click="showModal = true">
-          <Icon name="lucide:plus" class="w-4 h-4" />
-          Nova turma
+        <button class="btn-primary" @click="showModal = true">
+          <Icon name="lucide:plus" class="w-4 h-4" /> Nova turma
         </button>
+      </div>
+    </div>
+
+    <!-- Resumo rápido -->
+    <div v-if="!loading && classes.length" class="summary fade-in" :class="{ ready: mounted }" style="--d:.05s">
+      <div v-for="r in resumoRapido" :key="r.label" class="summary-item">
+        <span class="summary-dot" :class="r.dot" />
+        <span><strong>{{ r.value }}</strong> {{ r.label }}</span>
       </div>
     </div>
 
     <!-- Skeleton -->
-    <div v-if="loading" class="space-y-6">
-      <div v-for="nivel in 2" :key="nivel">
-        <div class="h-4 w-32 bg-gray-100 rounded animate-pulse mb-3" />
-        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <div v-for="i in 5" :key="i" class="h-28 bg-white rounded-2xl border border-gray-100 animate-pulse" :style="`animation-delay:${i*40}ms`" />
-        </div>
-      </div>
+    <div v-if="loading" class="turmas-grid fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <div v-for="i in 8" :key="i" class="skel-card" :style="`--i:${i}`" />
     </div>
 
     <!-- Empty -->
-    <div v-else-if="classes.length === 0"
-      class="flex flex-col items-center justify-center py-28 bg-white rounded-2xl border-2 border-dashed border-gray-100 animate-fade-in">
-      <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-        <Icon name="lucide:users" class="w-6 h-6 text-gray-200" />
+    <div v-else-if="!classes.length" class="empty-state fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <Icon name="lucide:school" class="w-10 h-10 text-gray-200" />
+      <p class="empty-title">Nenhuma turma cadastrada</p>
+      <p class="empty-sub">Crie turmas para começar a organizar os alunos</p>
+      <div class="flex gap-2 mt-3">
+        <button class="btn-secondary" @click="showImportModal = true">
+          <Icon name="lucide:upload" class="w-4 h-4" /> Importar CSV
+        </button>
+        <button class="btn-primary" @click="showModal = true">
+          <Icon name="lucide:plus" class="w-4 h-4" /> Criar turma
+        </button>
       </div>
-      <p class="text-sm font-bold text-gray-400">Nenhuma turma cadastrada</p>
-      <p class="text-xs text-gray-300 mt-1">Crie uma turma ou importe via CSV</p>
     </div>
 
     <!-- Agrupado por nível -->
-    <div v-else class="space-y-7">
-
+    <template v-else>
       <!-- Ensino Médio -->
-      <div v-if="classesPorNivel.medio.length" class="animate-fade-up" style="animation-delay:60ms">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="flex items-center gap-2">
-            <div class="w-1.5 h-4 rounded-full bg-blue-500" />
-            <span class="text-[11px] font-black text-gray-500 uppercase tracking-widest">Ensino Médio</span>
-          </div>
-          <div class="flex-1 h-px bg-gray-100" />
-          <span class="text-[11px] font-semibold text-gray-300">{{ classesPorNivel.medio.length }} turmas</span>
+      <section v-if="classesPorNivel.medio.length" class="fade-in" :class="{ ready: mounted }" style="--d:.08s">
+        <div class="level-header">
+          <span class="level-bar bg-blue-500" />
+          <span class="level-label">Ensino Médio</span>
+          <span class="level-count">{{ classesPorNivel.medio.length }} turmas</span>
         </div>
-        <div class="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          <div
-            v-for="(cls, idx) in classesPorNivel.medio" :key="cls.id"
-            class="group relative bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 hover:border-blue-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-up"
-            :style="`animation-delay:${80 + idx*30}ms`">
-
-            <!-- Botões de ação — aparecem no hover -->
-            <div class="absolute top-2.5 right-2.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 z-10">
-              <button
-                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-violet-50 hover:border-violet-200 transition-all"
-                title="Clonar disciplinas para outras turmas"
-                @click.prevent="openClone(cls)">
+        <div class="turmas-grid">
+          <div v-for="(cls, idx) in classesPorNivel.medio" :key="cls.id"
+            class="turma-card group" :style="`--i:${idx}`">
+            <div class="turma-actions">
+              <button class="action-btn" title="Clonar disciplinas" @click.prevent="openClone(cls)">
                 <Icon name="lucide:copy" class="w-3.5 h-3.5 text-violet-500" />
               </button>
-              <button
-                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-all"
-                title="Excluir turma"
-                @click.prevent="askDelete(cls)">
+              <button class="action-btn action-btn--del" title="Excluir" @click.prevent="askDelete(cls)">
                 <Icon name="lucide:trash-2" class="w-3.5 h-3.5 text-red-400" />
               </button>
             </div>
-
-            <!-- Card clicável -->
-            <NuxtLink :to="`/dashboard/coordenador/turmas/${cls.id}`" class="absolute inset-0 rounded-2xl z-0" />
-
-            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow-sm"
-                :class="coresMedio[idx % coresMedio.length]">
-                {{ cls.name }}
-              </div>
-              <Icon name="lucide:arrow-right" class="w-3.5 h-3.5 text-gray-200 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
-            </div>
-            <div class="relative z-[1] pointer-events-none">
-              <p class="text-sm font-black text-gray-900 group-hover:text-blue-600 transition-colors leading-none">{{ cls.name }}</p>
-              <p class="text-[10px] text-gray-400 mt-0.5">Ensino Médio</p>
-            </div>
-            <div class="h-px bg-gray-50" />
-            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
-              <div class="flex items-center gap-1">
-                <Icon name="lucide:graduation-cap" class="w-3 h-3 text-gray-300" />
-                <span class="text-xs font-black text-gray-700 tabular-nums">
-                  <span v-if="loadingStudents[cls.id]" class="inline-block w-4 h-3 bg-gray-100 rounded animate-pulse" />
-                  <span v-else>{{ students[cls.id]?.length ?? 0 }}</span>
+            <NuxtLink :to="`/dashboard/coordenador/turmas/${cls.id}`" class="turma-link">
+              <div class="turma-badge" :class="coresMedio[idx % coresMedio.length]">{{ cls.name }}</div>
+              <div class="turma-info">
+                <span class="turma-disc">{{ disciplineCount[cls.id]??0 }} disciplina{{ (disciplineCount[cls.id]??0)!==1?'s':'' }}</span>
+                <span class="turma-alunos">
+                  <span v-if="loadingStudents[cls.id]" class="skel-tiny" />
+                  <span v-else>{{ students[cls.id]?.length??0 }} aluno{{ (students[cls.id]?.length??0)!==1?'s':'' }}</span>
                 </span>
               </div>
-              <div class="flex items-center gap-1">
-                <Icon name="lucide:book-open" class="w-3 h-3 text-gray-300" />
-                <span class="text-xs font-black text-gray-700 tabular-nums">
-                  {{ disciplineCount[cls.id] ?? '—' }}
-                </span>
-              </div>
-            </div>
+            </NuxtLink>
           </div>
         </div>
-      </div>
+      </section>
 
       <!-- Ensino Fundamental -->
-      <div v-if="classesPorNivel.fundamental.length" class="animate-fade-up" style="animation-delay:120ms">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="flex items-center gap-2">
-            <div class="w-1.5 h-4 rounded-full bg-emerald-500" />
-            <span class="text-[11px] font-black text-gray-500 uppercase tracking-widest">Ensino Fundamental</span>
-          </div>
-          <div class="flex-1 h-px bg-gray-100" />
-          <span class="text-[11px] font-semibold text-gray-300">{{ classesPorNivel.fundamental.length }} turmas</span>
+      <section v-if="classesPorNivel.fundamental.length" class="fade-in" :class="{ ready: mounted }" style="--d:.12s">
+        <div class="level-header">
+          <span class="level-bar bg-emerald-500" />
+          <span class="level-label">Ensino Fundamental</span>
+          <span class="level-count">{{ classesPorNivel.fundamental.length }} turmas</span>
         </div>
-        <div class="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          <div
-            v-for="(cls, idx) in classesPorNivel.fundamental" :key="cls.id"
-            class="group relative bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-up"
-            :style="`animation-delay:${140 + idx*30}ms`">
-
-            <div class="absolute top-2.5 right-2.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 z-10">
-              <button
-                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-violet-50 hover:border-violet-200 transition-all"
-                title="Clonar disciplinas para outras turmas"
-                @click.prevent="openClone(cls)">
+        <div class="turmas-grid">
+          <div v-for="(cls, idx) in classesPorNivel.fundamental" :key="cls.id"
+            class="turma-card group" :style="`--i:${idx}`">
+            <div class="turma-actions">
+              <button class="action-btn" title="Clonar disciplinas" @click.prevent="openClone(cls)">
                 <Icon name="lucide:copy" class="w-3.5 h-3.5 text-violet-500" />
               </button>
-              <button
-                class="w-7 h-7 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-all"
-                title="Excluir turma"
-                @click.prevent="askDelete(cls)">
+              <button class="action-btn action-btn--del" title="Excluir" @click.prevent="askDelete(cls)">
                 <Icon name="lucide:trash-2" class="w-3.5 h-3.5 text-red-400" />
               </button>
             </div>
-
-            <NuxtLink :to="`/dashboard/coordenador/turmas/${cls.id}`" class="absolute inset-0 rounded-2xl z-0" />
-
-            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow-sm"
-                :class="coresFund[idx % coresFund.length]">
-                {{ cls.name }}
-              </div>
-              <Icon name="lucide:arrow-right" class="w-3.5 h-3.5 text-gray-200 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
-            </div>
-            <div class="relative z-[1] pointer-events-none">
-              <p class="text-sm font-black text-gray-900 group-hover:text-emerald-600 transition-colors leading-none">{{ cls.name }}</p>
-              <p class="text-[10px] text-gray-400 mt-0.5">Ens. Fundamental</p>
-            </div>
-            <div class="h-px bg-gray-50" />
-            <div class="flex items-center justify-between relative z-[1] pointer-events-none">
-              <div class="flex items-center gap-1">
-                <Icon name="lucide:graduation-cap" class="w-3 h-3 text-gray-300" />
-                <span class="text-xs font-black text-gray-700 tabular-nums">
-                  <span v-if="loadingStudents[cls.id]" class="inline-block w-4 h-3 bg-gray-100 rounded animate-pulse" />
-                  <span v-else>{{ students[cls.id]?.length ?? 0 }}</span>
+            <NuxtLink :to="`/dashboard/coordenador/turmas/${cls.id}`" class="turma-link">
+              <div class="turma-badge" :class="coresFund[idx % coresFund.length]">{{ cls.name }}</div>
+              <div class="turma-info">
+                <span class="turma-disc">{{ disciplineCount[cls.id]??0 }} disciplina{{ (disciplineCount[cls.id]??0)!==1?'s':'' }}</span>
+                <span class="turma-alunos">
+                  <span v-if="loadingStudents[cls.id]" class="skel-tiny" />
+                  <span v-else>{{ students[cls.id]?.length??0 }} aluno{{ (students[cls.id]?.length??0)!==1?'s':'' }}</span>
                 </span>
               </div>
-              <div class="flex items-center gap-1">
-                <Icon name="lucide:book-open" class="w-3 h-3 text-gray-300" />
-                <span class="text-xs font-black text-gray-700 tabular-nums">
-                  {{ disciplineCount[cls.id] ?? '—' }}
-                </span>
-              </div>
-            </div>
+            </NuxtLink>
           </div>
         </div>
-      </div>
+      </section>
+    </template>
 
-    </div>
-
-    <!-- ── Modal Clone de Disciplinas ───────────────────────────────────────── -->
+    <!-- Modal nova turma -->
     <Transition name="modal">
-      <div v-if="showCloneModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeClone" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-modal-in flex flex-col max-h-[90vh]">
-
-          <!-- Header -->
-          <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-50 flex-shrink-0">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                <Icon name="lucide:copy" class="w-5 h-5 text-violet-500" />
-              </div>
-              <div>
-                <h3 class="text-base font-black text-gray-900">Clonar grade curricular</h3>
-                <p class="text-xs text-gray-400 mt-0.5">Copiar disciplinas de <span class="font-bold text-violet-600">{{ cloneSource?.name }}</span> para outras turmas</p>
-              </div>
-            </div>
-            <button class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors" @click="closeClone">
-              <Icon name="lucide:x" class="w-4 h-4 text-gray-400" />
-            </button>
-          </div>
-
-          <!-- Info da origem -->
-          <div class="px-6 py-3 bg-violet-50/60 border-b border-violet-100 flex-shrink-0">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <Icon name="lucide:book-open" class="w-3.5 h-3.5 text-violet-500" />
-                <span class="text-xs font-bold text-violet-700">
-                  {{ cloneSourceDiscs.length }} disciplina{{ cloneSourceDiscs.length !== 1 ? 's' : '' }} serão copiadas
-                </span>
-              </div>
-              <div v-if="cloneSourceDiscs.length > 0" class="flex flex-wrap gap-1 max-w-xs justify-end">
-                <span v-for="d in cloneSourceDiscs.slice(0, 4)" :key="d.id"
-                  class="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-md">
-                  {{ d.discipline_name }}
-                </span>
-                <span v-if="cloneSourceDiscs.length > 4"
-                  class="text-[10px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-md">
-                  +{{ cloneSourceDiscs.length - 4 }} mais
-                </span>
-              </div>
-              <span v-else class="text-xs text-amber-600 font-bold">⚠ Turma sem disciplinas</span>
+      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-box">
+          <h3 class="modal-title">Nova turma</h3>
+          <div class="field">
+            <label class="field-label">Nível</label>
+            <div class="toggle-group">
+              <button class="toggle-btn" :class="novoForm.nivel==='medio'?'toggle-btn--on':'toggle-btn--off'" @click="selectNivel('medio')">Ensino Médio</button>
+              <button class="toggle-btn" :class="novoForm.nivel==='fundamental'?'toggle-btn--on':'toggle-btn--off'" @click="selectNivel('fundamental')">Ens. Fundamental</button>
             </div>
           </div>
-
-          <!-- Selecionar destinos -->
-          <div class="px-6 py-4 flex-1 overflow-y-auto">
-            <div class="flex items-center justify-between mb-3">
-              <p class="text-[11px] font-black text-gray-500 uppercase tracking-wider">Selecionar turmas de destino</p>
-              <div class="flex gap-2">
-                <button class="text-[11px] font-bold text-violet-600 hover:underline" @click="selectAllTargets">Todas</button>
-                <span class="text-gray-200">|</span>
-                <button class="text-[11px] font-bold text-gray-400 hover:underline" @click="cloneTargets = []">Nenhuma</button>
-              </div>
-            </div>
-
-            <!-- Médio -->
-            <div v-if="cloneTargetOptions.medio.length" class="mb-4">
-              <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">Ensino Médio</p>
-              <div class="grid grid-cols-3 gap-2">
-                <button
-                  v-for="cls in cloneTargetOptions.medio" :key="cls.id"
-                  class="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all duration-150"
-                  :class="cloneTargets.includes(cls.id)
-                    ? 'border-violet-400 bg-violet-50 text-violet-900'
-                    : 'border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-200'"
-                  @click="toggleTarget(cls.id)">
-                  <div class="w-2 h-2 rounded-full flex-shrink-0 transition-all"
-                    :class="cloneTargets.includes(cls.id) ? 'bg-violet-500' : 'bg-gray-200'" />
-                  <span class="text-xs font-black">{{ cls.name }}</span>
-                  <Icon v-if="cloneTargets.includes(cls.id)" name="lucide:check" class="w-3 h-3 text-violet-500 ml-auto" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Fundamental -->
-            <div v-if="cloneTargetOptions.fundamental.length">
-              <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2">Ensino Fundamental</p>
-              <div class="grid grid-cols-3 gap-2">
-                <button
-                  v-for="cls in cloneTargetOptions.fundamental" :key="cls.id"
-                  class="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all duration-150"
-                  :class="cloneTargets.includes(cls.id)
-                    ? 'border-violet-400 bg-violet-50 text-violet-900'
-                    : 'border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-200'"
-                  @click="toggleTarget(cls.id)">
-                  <div class="w-2 h-2 rounded-full flex-shrink-0 transition-all"
-                    :class="cloneTargets.includes(cls.id) ? 'bg-violet-500' : 'bg-gray-200'" />
-                  <span class="text-xs font-black">{{ cls.name }}</span>
-                  <Icon v-if="cloneTargets.includes(cls.id)" name="lucide:check" class="w-3 h-3 text-violet-500 ml-auto" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Opção de sobrescrever -->
-            <div class="mt-4 pt-4 border-t border-gray-100">
-              <button
-                class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl border-2 text-left transition-all duration-150"
-                :class="cloneOverwrite
-                  ? 'border-amber-300 bg-amber-50'
-                  : 'border-gray-100 bg-gray-50 hover:border-gray-200'"
-                @click="cloneOverwrite = !cloneOverwrite">
-                <div class="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                  :class="cloneOverwrite ? 'border-amber-500 bg-amber-500' : 'border-gray-300'">
-                  <Icon v-if="cloneOverwrite" name="lucide:check" class="w-2.5 h-2.5 text-white" />
-                </div>
-                <div>
-                  <p class="text-xs font-bold" :class="cloneOverwrite ? 'text-amber-800' : 'text-gray-700'">Substituir disciplinas existentes</p>
-                  <p class="text-[10px]" :class="cloneOverwrite ? 'text-amber-600' : 'text-gray-400'">Remove as disciplinas atuais das turmas destino antes de clonar</p>
-                </div>
-              </button>
+          <div v-if="novoForm.nivel" class="field">
+            <label class="field-label">Série</label>
+            <div class="opt-grid">
+              <button v-for="g in gradesFiltradas" :key="g.id"
+                class="opt-btn" :class="novoForm.grade_id===g.id?'opt-btn--on':''"
+                @click="novoForm.grade_id=g.id">{{ g.label }}</button>
             </div>
           </div>
-
-          <!-- Footer -->
-          <div class="px-6 py-4 border-t border-gray-50 flex-shrink-0">
-
-            <!-- Resultado -->
-            <Transition name="slide-down">
-              <div v-if="cloneResult" class="mb-3 px-3 py-2.5 rounded-xl border flex items-start gap-2"
-                :class="cloneResult.error ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'">
-                <Icon :name="cloneResult.error ? 'lucide:circle-x' : 'lucide:check-circle-2'"
-                  class="w-4 h-4 flex-shrink-0 mt-0.5"
-                  :class="cloneResult.error ? 'text-red-400' : 'text-emerald-500'" />
-                <p class="text-xs font-medium" :class="cloneResult.error ? 'text-red-600' : 'text-emerald-700'">
-                  {{ cloneResult.message }}
-                </p>
-              </div>
-            </Transition>
-
-            <div class="flex gap-2">
-              <button
-                class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all"
-                @click="closeClone">Cancelar</button>
-              <button
-                :disabled="cloneTargets.length === 0 || cloneSourceDiscs.length === 0 || cloning"
-                class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-                :class="cloneTargets.length === 0 || cloneSourceDiscs.length === 0 || cloning
-                  ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                  : 'bg-violet-600 hover:bg-violet-700 text-white active:scale-95'"
-                @click="executeClone">
-                <svg v-if="cloning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-                <Icon v-else name="lucide:copy" class="w-4 h-4" />
-                {{ cloning ? 'Clonando...' : `Clonar para ${cloneTargets.length} turma${cloneTargets.length !== 1 ? 's' : ''}` }}
-              </button>
+          <div v-if="novoForm.grade_id" class="field">
+            <label class="field-label">Turma</label>
+            <div class="opt-grid">
+              <button v-for="s in sections" :key="s.id"
+                class="opt-btn" :class="novoForm.section_id===s.id?'opt-btn--on':''"
+                @click="novoForm.section_id=s.id">{{ s.label }}</button>
             </div>
           </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- ── Modal excluir turma ──────────────────────────────────────────────── -->
-    <Transition name="modal">
-      <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showDeleteModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-              <Icon name="lucide:trash-2" class="w-5 h-5 text-red-500" />
-            </div>
-            <div>
-              <h3 class="text-base font-black text-gray-900">Excluir turma</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Esta ação não pode ser desfeita</p>
-            </div>
+          <div v-if="previewNome" class="preview-box">
+            Turma: <strong>{{ previewNome }}</strong>
           </div>
-          <p class="text-sm text-gray-600 leading-relaxed mb-4">
-            Tem certeza que deseja excluir a turma
-            <span class="font-black text-gray-900">{{ deleteTarget?.name }}</span>?
-          </p>
-          <div v-if="deleteError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl mb-4">
-            <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-            <p class="text-xs text-red-500 font-medium">{{ deleteError }}</p>
-          </div>
-          <div class="flex gap-2">
-            <button
-              class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all"
-              @click="showDeleteModal = false">Cancelar</button>
-            <button
-              :disabled="deleting"
-              class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-              :class="deleting ? 'bg-red-200 text-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white active:scale-95'"
-              @click="confirmDelete">
-              <svg v-if="deleting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              {{ deleting ? 'Excluindo...' : 'Sim, excluir' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- ── Modal nova turma ─────────────────────────────────────────────────── -->
-    <Transition name="modal">
-      <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="closeModal" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h3 class="text-base font-black text-gray-900">Nova turma</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Selecione nível, série/ano e seção</p>
-            </div>
-            <button class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors" @click="closeModal">
-              <Icon name="lucide:x" class="w-4 h-4 text-gray-400" />
-            </button>
-          </div>
-
-          <div class="space-y-4">
-            <div>
-              <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Nível</label>
-              <div class="grid grid-cols-2 gap-2">
-                <button
-                  v-for="n in niveis" :key="n.value"
-                  class="py-2.5 rounded-xl text-sm font-bold border-2 transition-all duration-150"
-                  :class="novoForm.nivel === n.value
-                    ? 'border-gray-900 bg-gray-900 text-white'
-                    : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-300'"
-                  @click="selectNivel(n.value)">
-                  {{ n.label }}
-                </button>
-              </div>
-            </div>
-
-            <Transition name="slide-down" mode="out-in">
-              <div v-if="novoForm.nivel" :key="novoForm.nivel">
-                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
-                  {{ novoForm.nivel === 'medio' ? 'Série' : 'Ano' }}
-                </label>
-                <div class="grid gap-2" :class="gradesFiltradas.length <= 4 ? 'grid-cols-4' : 'grid-cols-5'">
-                  <button
-                    v-for="g in gradesFiltradas" :key="g.id"
-                    class="py-2 rounded-xl text-sm font-bold border-2 transition-all duration-150 text-center"
-                    :class="novoForm.grade_id === g.id
-                      ? 'border-gray-900 bg-gray-900 text-white'
-                      : 'border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300'"
-                    @click="novoForm.grade_id = g.id; novoForm.section_id = null">
-                    {{ g.label }}
-                  </button>
-                </div>
-              </div>
-            </Transition>
-
-            <Transition name="slide-down" mode="out-in">
-              <div v-if="novoForm.grade_id" key="section">
-                <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Seção</label>
-                <div class="flex gap-2">
-                  <button
-                    v-for="s in sections" :key="s.id"
-                    class="w-10 h-10 rounded-xl text-sm font-black border-2 transition-all duration-150"
-                    :class="novoForm.section_id === s.id
-                      ? 'border-gray-900 bg-gray-900 text-white'
-                      : 'border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-300'"
-                    @click="novoForm.section_id = s.id">
-                    {{ s.label }}
-                  </button>
-                </div>
-              </div>
-            </Transition>
-
-            <Transition name="slide-down">
-              <div v-if="previewNome"
-                class="flex items-center gap-3 px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                  :class="novoForm.nivel === 'medio' ? 'bg-blue-500' : 'bg-emerald-500'">
-                  {{ previewNome }}
-                </div>
-                <div>
-                  <p class="text-sm font-black text-gray-900">{{ previewNome }}</p>
-                  <p class="text-[11px] text-gray-400">{{ novoForm.nivel === 'medio' ? 'Ensino Médio' : 'Ensino Fundamental' }}</p>
-                </div>
-              </div>
-            </Transition>
-
-            <div v-if="modalError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl">
-              <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-              <p class="text-xs text-red-500 font-medium">{{ modalError }}</p>
-            </div>
-
-            <button
-              :disabled="!novoForm.grade_id || !novoForm.section_id || saving"
-              class="w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-              :class="!novoForm.grade_id || !novoForm.section_id || saving
-                ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                : 'bg-gray-900 hover:bg-gray-700 text-white active:scale-95'"
-              @click="createClass">
-              <svg v-if="saving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
+          <p v-if="modalError" class="error-msg">{{ modalError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeModal">Cancelar</button>
+            <button class="btn-primary" :disabled="!novoForm.grade_id||!novoForm.section_id||saving" @click="createClass">
               {{ saving ? 'Criando...' : 'Criar turma' }}
             </button>
           </div>
@@ -479,99 +156,88 @@
       </div>
     </Transition>
 
-    <!-- ── Modal importar CSV ───────────────────────────────────────────────── -->
+    <!-- Modal importar CSV -->
     <Transition name="modal">
-      <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="closeImport" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-modal-in">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h3 class="text-base font-black text-gray-900">Importar alunos via CSV</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Arquivo no padrão SEDUC-SP</p>
+      <div v-if="showImportModal" class="modal-overlay" @click.self="closeImport">
+        <div class="modal-box">
+          <h3 class="modal-title">Importar alunos via CSV</h3>
+          <div class="field">
+            <label class="field-label">Turma</label>
+            <select v-model="importForm.class_id" class="field-select">
+              <option value="">Selecione a turma...</option>
+              <option v-for="cls in classes" :key="cls.id" :value="cls.id">{{ cls.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Arquivo CSV</label>
+            <div class="drop-zone"
+              :class="isDragging?'drop-zone--drag':csvFile?'drop-zone--ok':''"
+              @dragover.prevent="isDragging=true" @dragleave="isDragging=false" @drop.prevent="onDrop"
+              @click="$refs.csvInput.click()">
+              <input ref="csvInput" type="file" accept=".csv" class="hidden" @change="onFileChange" />
+              <Icon v-if="!csvFile" name="lucide:upload-cloud" class="w-8 h-8 text-gray-300" />
+              <Icon v-else name="lucide:file-check" class="w-8 h-8 text-emerald-400" />
+              <span class="drop-label">{{ csvFile ? csvFile.name : 'Arraste ou clique para selecionar' }}</span>
             </div>
-            <button class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors" @click="closeImport">
-              <Icon name="lucide:x" class="w-4 h-4 text-gray-400" />
+          </div>
+          <div v-if="importResult" class="result-box" :class="importResult.error?'result-box--err':'result-box--ok'">
+            {{ importResult.message }}
+          </div>
+          <p v-if="importResult?.error === false" class="field-hint text-center">CSV importado com sucesso!</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeImport">Fechar</button>
+            <button class="btn-primary" :disabled="!csvFile||!importForm.class_id||importing" @click="importCsv">
+              {{ importing ? 'Importando...' : 'Importar' }}
             </button>
           </div>
+        </div>
+      </div>
+    </Transition>
 
-          <div class="space-y-4">
-            <div>
-              <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Turma de destino</label>
-              <select v-model="importForm.class_id"
-                class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all bg-white appearance-none">
-                <option value="" disabled>Selecione a turma...</option>
-                <optgroup v-if="classesPorNivel.medio.length" label="Ensino Médio">
-                  <option v-for="cls in classesPorNivel.medio" :key="cls.id" :value="cls.id">{{ cls.name }}</option>
-                </optgroup>
-                <optgroup v-if="classesPorNivel.fundamental.length" label="Ensino Fundamental">
-                  <option v-for="cls in classesPorNivel.fundamental" :key="cls.id" :value="cls.id">{{ cls.name }}</option>
-                </optgroup>
-              </select>
-            </div>
+    <!-- Modal clonar disciplinas -->
+    <Transition name="modal">
+      <div v-if="showCloneModal" class="modal-overlay" @click.self="closeClone">
+        <div class="modal-box modal-box--wide">
+          <h3 class="modal-title">Clonar disciplinas de <strong>{{ cloneSource?.name }}</strong></h3>
+          <p class="modal-sub">{{ cloneSourceDiscs.length }} disciplina(s) serão copiadas para as turmas selecionadas.</p>
+          <div class="clone-grid">
+            <label v-for="cls in [...cloneTargetOptions.medio,...cloneTargetOptions.fundamental]" :key="cls.id"
+              class="clone-item">
+              <input type="checkbox" :value="cls.id" v-model="cloneTargets" class="accent-blue-600" />
+              <span>{{ cls.name }}</span>
+            </label>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" v-model="cloneOverwrite" class="accent-blue-600" />
+            Sobrescrever disciplinas existentes
+          </label>
+          <div v-if="cloneResult" class="result-box" :class="cloneResult.error?'result-box--err':'result-box--ok'">
+            {{ cloneResult.message }}
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeClone">Fechar</button>
+            <button class="btn-primary" :disabled="!cloneTargets.length||cloning" @click="executeClone">
+              {{ cloning ? 'Clonando...' : `Clonar para ${cloneTargets.length} turma${cloneTargets.length!==1?'s':''}` }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
-            <div>
-              <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Arquivo CSV</label>
-              <div
-                class="relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200 cursor-pointer"
-                :class="csvFile ? 'border-emerald-300 bg-emerald-50' : isDragging ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'"
-                @dragover.prevent="isDragging = true"
-                @dragleave="isDragging = false"
-                @drop.prevent="onDrop"
-                @click="(csvInput as HTMLInputElement)?.click()">
-                <input ref="csvInput" type="file" accept=".csv" class="hidden" @change="onFileChange" />
-                <Transition name="fade-swap" mode="out-in">
-                  <div v-if="csvFile" key="file" class="flex items-center justify-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
-                      <Icon name="lucide:file-check" class="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div class="text-left">
-                      <p class="text-sm font-bold text-emerald-700">{{ csvFile.name }}</p>
-                      <p class="text-xs text-emerald-500">{{ (csvFile.size / 1024).toFixed(1) }} KB</p>
-                    </div>
-                    <button class="w-6 h-6 rounded-lg hover:bg-emerald-200 flex items-center justify-center ml-1 transition-colors"
-                      @click.stop="csvFile = null">
-                      <Icon name="lucide:x" class="w-3 h-3 text-emerald-600" />
-                    </button>
-                  </div>
-                  <div v-else key="empty">
-                    <Icon name="lucide:upload-cloud" class="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p class="text-sm font-semibold text-gray-500">Arraste o CSV aqui</p>
-                    <p class="text-xs text-gray-400 mt-0.5">ou clique para selecionar</p>
-                  </div>
-                </Transition>
-              </div>
-            </div>
-
-            <div class="px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100">
-              <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Formato esperado (SEDUC-SP)</p>
-              <p class="text-[11px] text-gray-500 mb-1">Separador <code class="bg-gray-200 px-1 rounded">;</code> · apenas alunos <strong>Ativos</strong></p>
-              <code class="text-[10px] text-gray-400 font-mono">Nº de chamada;Nome do Aluno;RA;Dig. RA;...;Situação do Aluno</code>
-            </div>
-
-            <div v-if="importResult"
-              class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border"
-              :class="importResult.error ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'">
-              <Icon :name="importResult.error ? 'lucide:circle-x' : 'lucide:check-circle-2'"
-                class="w-4 h-4 flex-shrink-0 mt-0.5"
-                :class="importResult.error ? 'text-red-400' : 'text-emerald-500'" />
-              <p class="text-xs font-medium" :class="importResult.error ? 'text-red-600' : 'text-emerald-700'">
-                {{ importResult.message }}
-              </p>
-            </div>
-
-            <button
-              :disabled="!importForm.class_id || !csvFile || importing"
-              class="w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-              :class="!importForm.class_id || !csvFile || importing
-                ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                : 'bg-gray-900 hover:bg-gray-700 text-white active:scale-95'"
-              @click="importCsv">
-              <svg v-if="importing" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              <Icon v-else name="lucide:upload" class="w-4 h-4" />
-              {{ importing ? 'Importando...' : 'Importar alunos' }}
+    <!-- Modal excluir -->
+    <Transition name="modal">
+      <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal=false">
+        <div class="modal-box">
+          <div class="modal-icon-wrap bg-red-50">
+            <Icon name="lucide:trash-2" class="w-5 h-5 text-red-500" />
+          </div>
+          <h3 class="modal-title">Excluir turma {{ deleteTarget?.name }}?</h3>
+          <p class="modal-body">Esta ação não pode ser desfeita. Todos os vínculos serão removidos.</p>
+          <p v-if="deleteError" class="error-msg">{{ deleteError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showDeleteModal=false">Cancelar</button>
+            <button class="btn-danger" :disabled="deleting" @click="confirmDelete">
+              {{ deleting ? 'Excluindo...' : 'Sim, excluir' }}
             </button>
           </div>
         </div>
@@ -585,307 +251,231 @@
 definePageMeta({ layout: 'dashboard' })
 
 const { get, post, delete: del } = useApi()
+const mounted = ref(false)
 
-const classes  = ref<any[]>([])
-const grades   = ref<any[]>([])
-const sections = ref<any[]>([])
-const students        = ref<Record<number, any[]>>({})
-const loadingStudents = ref<Record<number, boolean>>({})
-const disciplineCount = ref<Record<number, number>>({})
-const loading  = ref(true)
+const classes         = ref<any[]>([])
+const grades          = ref<any[]>([])
+const sections        = ref<any[]>([])
+const students        = ref<Record<number,any[]>>({})
+const disciplineCount = ref<Record<number,number>>({})
+const loadingStudents = ref<Record<number,boolean>>({})
+const loading         = ref(true)
 
-// Modal nova turma
-const showModal  = ref(false)
-const saving     = ref(false)
-const modalError = ref('')
-const novoForm   = reactive({ nivel: '' as 'medio' | 'fundamental' | '', grade_id: null as any, section_id: null as any })
+// Modals
+const showModal       = ref(false); const modalError   = ref(''); const saving  = ref(false)
+const showImportModal = ref(false); const importResult = ref<any>(null); const importing = ref(false)
+const showCloneModal  = ref(false); const cloneResult  = ref<any>(null); const cloning   = ref(false)
+const showDeleteModal = ref(false); const deleteError  = ref('');         const deleting  = ref(false)
 
-// Modal importar CSV
-const showImportModal = ref(false)
-const importing       = ref(false)
-const isDragging      = ref(false)
-const csvFile         = ref<File | null>(null)
-const importResult    = ref<{ error: boolean; message: string } | null>(null)
-const importForm      = reactive({ class_id: '' as any })
-const csvInput        = ref<HTMLInputElement>()
+const novoForm    = reactive<{ nivel:string; grade_id:number|null; section_id:number|null }>({ nivel:'', grade_id:null, section_id:null })
+const importForm  = reactive({ class_id:'' })
+const csvFile     = ref<File|null>(null)
+const isDragging  = ref(false)
+const cloneSource = ref<any>(null); const cloneSourceDiscs = ref<any[]>([]); const cloneTargets = ref<number[]>([]); const cloneOverwrite = ref(false)
+const deleteTarget= ref<any>(null)
 
-// Modal excluir
-const showDeleteModal = ref(false)
-const deleteTarget    = ref<any>(null)
-const deleting        = ref(false)
-const deleteError     = ref('')
-
-// Modal clone
-const showCloneModal   = ref(false)
-const cloneSource      = ref<any>(null)
-const cloneSourceDiscs = ref<any[]>([])
-const cloneTargets     = ref<number[]>([])
-const cloneOverwrite   = ref(false)
-const cloning          = ref(false)
-const cloneResult      = ref<{ error: boolean; message: string } | null>(null)
-
-const niveis = [
-  { value: 'medio',       label: 'Ensino Médio' },
-  { value: 'fundamental', label: 'Fundamental' },
-]
-
-const coresMedio = ['bg-blue-500', 'bg-violet-500', 'bg-indigo-500', 'bg-sky-500', 'bg-purple-500']
-const coresFund  = ['bg-emerald-500', 'bg-teal-500', 'bg-green-500', 'bg-cyan-500', 'bg-lime-600']
+const coresMedio = ['bg-blue-500','bg-indigo-500','bg-violet-500','bg-sky-500','bg-cyan-500']
+const coresFund  = ['bg-emerald-500','bg-teal-500','bg-green-500','bg-lime-600','bg-amber-500']
 
 const classesPorNivel = computed(() => {
-  const medio: any[]       = []
-  const fundamental: any[] = []
+  const medio: any[] = [], fundamental: any[] = []
   for (const cls of classes.value) {
-    const level = cls.grade?.level ?? cls.level
-    if (level === 'fundamental') fundamental.push(cls)
+    const g = grades.value.find(g => g.id === cls.grade_id)
+    if (g?.level === 'fundamental') fundamental.push(cls)
     else medio.push(cls)
   }
-  medio.sort((a, b) => a.name.localeCompare(b.name))
-  fundamental.sort((a, b) => a.name.localeCompare(b.name))
+  medio.sort((a,b)=>a.name.localeCompare(b.name))
+  fundamental.sort((a,b)=>a.name.localeCompare(b.name))
   return { medio, fundamental }
 })
 
-// Turmas disponíveis como destino do clone (exclui a origem)
+const totalAlunos = computed(() => Object.values(students.value).reduce((s,arr)=>s+(arr?.length??0),0))
+const resumoRapido = computed(() => [
+  { label:'Ensino Médio',     value:classesPorNivel.value.medio.length,       dot:'bg-blue-400'    },
+  { label:'Ens. Fundamental', value:classesPorNivel.value.fundamental.length, dot:'bg-emerald-400' },
+  { label:'alunos no total',  value:totalAlunos.value,                        dot:'bg-gray-300'    },
+])
+const gradesFiltradas    = computed(() => grades.value.filter(g=>g.level===novoForm.nivel).sort((a,b)=>a.year_number-b.year_number))
 const cloneTargetOptions = computed(() => {
   const srcId = cloneSource.value?.id
-  const medio       = classesPorNivel.value.medio.filter(c => c.id !== srcId)
-  const fundamental = classesPorNivel.value.fundamental.filter(c => c.id !== srcId)
-  return { medio, fundamental }
+  return { medio:classesPorNivel.value.medio.filter(c=>c.id!==srcId), fundamental:classesPorNivel.value.fundamental.filter(c=>c.id!==srcId) }
 })
-
-const gradesFiltradas = computed(() =>
-  grades.value
-    .filter(g => g.level === novoForm.nivel)
-    .sort((a, b) => a.year_number - b.year_number)
-)
-
 const previewNome = computed(() => {
   if (!novoForm.grade_id || !novoForm.section_id) return ''
-  const g = grades.value.find(g => g.id === novoForm.grade_id)
-  const s = sections.value.find(s => s.id === novoForm.section_id)
-  if (!g || !s) return ''
-  return `${g.label}${s.label}`
+  const g = grades.value.find(g=>g.id===novoForm.grade_id)
+  const s = sections.value.find(s=>s.id===novoForm.section_id)
+  return g&&s?`${g.label}${s.label}`:''
 })
 
-function selectNivel(nivel: string) {
-  novoForm.nivel = nivel as any
-  novoForm.grade_id = null
-  novoForm.section_id = null
-}
-
-function closeModal() {
-  showModal.value = false
-  novoForm.nivel = ''
-  novoForm.grade_id = null
-  novoForm.section_id = null
-  modalError.value = ''
-}
-
-function closeImport() {
-  showImportModal.value = false
-  csvFile.value = null
-  importResult.value = null
-  importForm.class_id = ''
-  isDragging.value = false
-}
-
-function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) { csvFile.value = file; importResult.value = null }
-}
-
-function onDrop(e: DragEvent) {
-  isDragging.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file?.name.endsWith('.csv')) { csvFile.value = file; importResult.value = null }
-}
-
-// ── Clone ──────────────────────────────────────────────────────────────────
+function selectNivel(nivel: string) { novoForm.nivel=nivel; novoForm.grade_id=null; novoForm.section_id=null }
+function closeModal()  { showModal.value=false; novoForm.nivel=''; novoForm.grade_id=null; novoForm.section_id=null; modalError.value='' }
+function closeImport() { showImportModal.value=false; csvFile.value=null; importResult.value=null; importForm.class_id=''; isDragging.value=false }
+function closeClone()  { showCloneModal.value=false; cloneSource.value=null; cloneSourceDiscs.value=[]; cloneTargets.value=[]; cloneResult.value=null }
+function onFileChange(e: Event) { const f=(e.target as HTMLInputElement).files?.[0]; if (f){csvFile.value=f;importResult.value=null} }
+function onDrop(e: DragEvent) { isDragging.value=false; const f=e.dataTransfer?.files?.[0]; if (f?.name.endsWith('.csv')){csvFile.value=f;importResult.value=null} }
+function askDelete(cls: any) { deleteTarget.value=cls; deleteError.value=''; showDeleteModal.value=true }
 
 async function openClone(cls: any) {
-  cloneSource.value = cls
-  cloneTargets.value = []
-  cloneOverwrite.value = false
-  cloneResult.value = null
-  showCloneModal.value = true
-  // Carregar disciplinas da turma origem
-  try {
-    cloneSourceDiscs.value = await get<any[]>(`/school/classes/${cls.id}/disciplines`)
-  } catch {
-    cloneSourceDiscs.value = []
-  }
+  cloneSource.value=cls; cloneTargets.value=[]; cloneOverwrite.value=false; cloneResult.value=null; showCloneModal.value=true
+  try { cloneSourceDiscs.value=await get<any[]>(`/school/classes/${cls.id}/disciplines`) } catch { cloneSourceDiscs.value=[] }
 }
-
-function closeClone() {
-  showCloneModal.value = false
-  cloneSource.value = null
-  cloneSourceDiscs.value = []
-  cloneTargets.value = []
-  cloneResult.value = null
-}
-
-function toggleTarget(id: number) {
-  const idx = cloneTargets.value.indexOf(id)
-  if (idx === -1) cloneTargets.value.push(id)
-  else cloneTargets.value.splice(idx, 1)
-}
-
-function selectAllTargets() {
-  const allIds = [
-    ...cloneTargetOptions.value.medio,
-    ...cloneTargetOptions.value.fundamental,
-  ].map(c => c.id)
-  cloneTargets.value = allIds
-}
-
 async function executeClone() {
-  if (!cloneSource.value || cloneTargets.value.length === 0) return
-  cloning.value = true
-  cloneResult.value = null
+  if (!cloneSource.value||!cloneTargets.value.length) return
+  cloning.value=true; cloneResult.value=null
   try {
-    const res = await post<any>(`/school/classes/${cloneSource.value.id}/clone-disciplines`, {
-      source_class_id: cloneSource.value.id,
-      target_class_ids: cloneTargets.value,
-      overwrite: cloneOverwrite.value,
-    })
-    const total = Object.values(res.results as Record<string, any>).reduce((s: number, r: any) => s + r.added, 0)
-    cloneResult.value = {
-      error: false,
-      message: `✓ ${res.disciplines_count} disciplinas copiadas para ${cloneTargets.value.length} turma${cloneTargets.value.length !== 1 ? 's' : ''} (${total} vínculos criados).`
-    }
-    // Atualizar contagem de disciplinas nos cards
-    for (const targetId of cloneTargets.value) {
-      disciplineCount.value[targetId] = res.disciplines_count
-    }
-    cloneTargets.value = []
-  } catch (e: any) {
-    cloneResult.value = { error: true, message: e?.message ?? 'Erro ao clonar disciplinas.' }
-  } finally {
-    cloning.value = false
-  }
+    const res=await post<any>(`/school/classes/${cloneSource.value.id}/clone-disciplines`,{ source_class_id:cloneSource.value.id, target_class_ids:cloneTargets.value, overwrite:cloneOverwrite.value })
+    const total=Object.values(res.results as Record<string,any>).reduce((s:number,r:any)=>s+r.added,0)
+    cloneResult.value={error:false,message:`${res.disciplines_count} disciplinas copiadas para ${cloneTargets.value.length} turma(s) — ${total} vínculos.`}
+    cloneTargets.value=[]
+  } catch (e:any) { cloneResult.value={error:true,message:e?.message??'Erro ao clonar.'} } finally { cloning.value=false }
 }
-
-// ── Delete ─────────────────────────────────────────────────────────────────
-
-function askDelete(cls: any) {
-  deleteTarget.value = cls
-  deleteError.value = ''
-  showDeleteModal.value = true
-}
-
 async function confirmDelete() {
   if (!deleteTarget.value) return
-  deleting.value = true
-  deleteError.value = ''
-  try {
-    await del(`/school/classes/${deleteTarget.value.id}`)
-    classes.value = classes.value.filter(c => c.id !== deleteTarget.value.id)
-    showDeleteModal.value = false
-    deleteTarget.value = null
-  } catch (e: any) {
-    deleteError.value = e?.message ?? 'Erro ao excluir turma.'
-  } finally {
-    deleting.value = false
-  }
+  deleting.value=true; deleteError.value=''
+  try { await del(`/school/classes/${deleteTarget.value.id}`); classes.value=classes.value.filter(c=>c.id!==deleteTarget.value.id); showDeleteModal.value=false }
+  catch (e:any) { deleteError.value=e?.message??'Erro ao excluir.' } finally { deleting.value=false }
 }
-
-// ── CRUD turma / CSV ────────────────────────────────────────────────────────
-
 async function createClass() {
-  if (!novoForm.grade_id || !novoForm.section_id) return
-  saving.value = true
-  modalError.value = ''
+  if (!novoForm.grade_id||!novoForm.section_id) return
+  saving.value=true; modalError.value=''
   try {
-    const created = await post<any>('/school/classes', {
-      grade_id:   novoForm.grade_id,
-      section_id: novoForm.section_id,
-    })
-    classes.value.push(created)
-    disciplineCount.value[created.id] = 0
+    const created=await post<any>('/school/classes',{grade_id:novoForm.grade_id,section_id:novoForm.section_id})
+    classes.value.push(created); disciplineCount.value[created.id]=0; students.value[created.id]=[]
     closeModal()
-  } catch (e: any) {
-    modalError.value = e.message ?? 'Erro ao criar turma.'
-  } finally {
-    saving.value = false
-  }
+  } catch (e:any) { modalError.value=e.message??'Erro ao criar turma.' } finally { saving.value=false }
 }
-
 async function importCsv() {
-  if (!csvFile.value || !importForm.class_id) return
-  importing.value = true
-  importResult.value = null
+  if (!csvFile.value||!importForm.class_id) return
+  importing.value=true; importResult.value=null
   try {
-    const fd = new FormData()
-    fd.append('file', csvFile.value)
-    const { upload } = useApi()
-    const res = await upload<any>(
-      `/school/students/import?class_id=${importForm.class_id}&dry_run=false`,
-      fd
-    )
-    importResult.value = {
-      error: false,
-      message: `${res.created} criado(s), ${res.updated} atualizado(s), ${res.skipped_inactive} inativos ignorados.`,
-    }
-    const updated = await get<any[]>(`/school/students/?class_id=${importForm.class_id}`)
-    students.value[importForm.class_id] = updated
-    csvFile.value = null
-  } catch (e: any) {
-    importResult.value = { error: true, message: e.message ?? 'Erro ao importar CSV.' }
-  } finally {
-    importing.value = false
-  }
+    const fd=new FormData(); fd.append('file',csvFile.value)
+    const { upload }=useApi()
+    const res=await upload<any>(`/school/students/import?class_id=${importForm.class_id}&dry_run=false`,fd)
+    importResult.value={error:false,message:`${res.created} criado(s), ${res.updated} atualizado(s), ${res.skipped_inactive} inativos ignorados.`}
+    students.value[importForm.class_id]=await get<any[]>(`/school/students/?class_id=${importForm.class_id}`)
+    csvFile.value=null
+  } catch (e:any) { importResult.value={error:true,message:e.message??'Erro ao importar CSV.'} } finally { importing.value=false }
 }
-
-// ── Mount ───────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
-  const [classList, gradeList, sectionList] = await Promise.allSettled([
-    get<any[]>('/school/classes'),
-    get<any[]>('/school/grades'),
-    get<any[]>('/school/sections'),
+  await nextTick(); setTimeout(()=>{mounted.value=true},30)
+  const [classList,gradeList,sectionList]=await Promise.allSettled([
+    get<any[]>('/school/classes'), get<any[]>('/school/grades'), get<any[]>('/school/sections')
   ])
-  if (classList.status === 'fulfilled')   classes.value  = classList.value
-  if (gradeList.status === 'fulfilled')   grades.value   = gradeList.value
-  if (sectionList.status === 'fulfilled') sections.value = sectionList.value
-  loading.value = false
-
-  // Carregar alunos e contagem de disciplinas em paralelo
+  if (classList.status==='fulfilled')   classes.value  = classList.value
+  if (gradeList.status==='fulfilled')   grades.value   = gradeList.value
+  if (sectionList.status==='fulfilled') sections.value = sectionList.value
+  loading.value=false
   classes.value.forEach(async cls => {
-    loadingStudents.value[cls.id] = true
-    try {
-      students.value[cls.id] = await get<any[]>(`/school/students/?class_id=${cls.id}`)
-    } catch {
-      students.value[cls.id] = []
-    } finally {
-      loadingStudents.value[cls.id] = false
-    }
-    // Carregar contagem de disciplinas
-    try {
-      const discs = await get<any[]>(`/school/classes/${cls.id}/disciplines`)
-      disciplineCount.value[cls.id] = discs.length
-    } catch {
-      disciplineCount.value[cls.id] = 0
-    }
+    loadingStudents.value[cls.id]=true
+    try { students.value[cls.id]=await get<any[]>(`/school/students/?class_id=${cls.id}`) } catch { students.value[cls.id]=[] } finally { loadingStudents.value[cls.id]=false }
+    try { const d=await get<any[]>(`/school/classes/${cls.id}/disciplines`); disciplineCount.value[cls.id]=d.length } catch { disciplineCount.value[cls.id]=0 }
   })
 })
 </script>
 
 <style scoped>
-@keyframes fade-in  { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
-@keyframes fade-up  { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-@keyframes modal-in { from { opacity:0; transform:scale(0.94) translateY(10px) } to { opacity:1; transform:scale(1) translateY(0) } }
+.page { display:flex; flex-direction:column; gap:1.25rem; padding-bottom:2rem; }
+.fade-in { opacity:0; transform:translateY(10px); transition:opacity .35s ease var(--d,.0s), transform .35s ease var(--d,.0s); }
+.fade-in.ready { opacity:1; transform:translateY(0); }
 
-.animate-fade-in  { animation: fade-in  0.3s ease both }
-.animate-fade-up  { animation: fade-up  0.38s ease both }
-.animate-modal-in { animation: modal-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both }
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.page-title  { font-size:1.35rem; font-weight:800; color:#111827; margin:0 0 .2rem; }
+.page-sub    { font-size:.8rem; color:#9ca3af; margin:0; }
+.skel-line   { display:inline-block; width:12rem; height:.875rem; background:#f3f4f6; border-radius:.375rem; animation:shimmer 1.5s ease-in-out infinite; }
 
-.modal-enter-active, .modal-leave-active { transition: opacity 0.18s ease }
-.modal-enter-from, .modal-leave-to { opacity: 0 }
+.summary { display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap; padding:.75rem 1.25rem; background:white; border:1px solid #f3f4f6; border-radius:.875rem; }
+.summary-item { display:flex; align-items:center; gap:.5rem; font-size:.8rem; color:#6b7280; }
+.summary-item strong { color:#111827; font-weight:800; }
+.summary-dot  { width:.5rem; height:.5rem; border-radius:50%; }
 
-.slide-down-enter-active, .slide-down-leave-active { transition: opacity 0.18s ease, transform 0.18s ease }
-.slide-down-enter-from { opacity: 0; transform: translateY(6px) }
-.slide-down-leave-to   { opacity: 0; transform: translateY(-4px) }
+.level-header { display:flex; align-items:center; gap:.75rem; margin-bottom:.875rem; }
+.level-bar    { width:.3rem; height:1.25rem; border-radius:9999px; }
+.level-label  { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:#374151; }
+.level-count  { font-size:.72rem; color:#9ca3af; margin-left:auto; }
 
-.fade-swap-enter-active, .fade-swap-leave-active { transition: opacity 0.15s ease }
-.fade-swap-enter-from, .fade-swap-leave-to { opacity: 0 }
+.turmas-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:.625rem; }
+
+.skel-card { height:8rem; background:white; border:1px solid #f3f4f6; border-radius:1rem; animation:shimmer 1.5s ease-in-out infinite; animation-delay:calc(var(--i,0)*50ms); }
+
+.empty-state { display:flex; flex-direction:column; align-items:center; gap:.5rem; padding:4rem 1rem; background:white; border:2px dashed #f3f4f6; border-radius:1rem; text-align:center; }
+.empty-title { font-size:.875rem; font-weight:700; color:#9ca3af; margin:.5rem 0 0; }
+.empty-sub   { font-size:.75rem; color:#d1d5db; margin:0; }
+
+.turma-card {
+  position:relative; background:white; border:1px solid #f3f4f6; border-radius:1rem;
+  overflow:hidden; transition:border-color .15s, box-shadow .15s, transform .15s;
+  animation:card-in .35s ease both; animation-delay:calc(var(--i,0)*40ms);
+}
+.turma-card:hover { border-color:#e5e7eb; box-shadow:0 2px 12px rgba(0,0,0,.06); transform:translateY(-2px); }
+@keyframes card-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+.turma-actions { position:absolute; top:.5rem; right:.5rem; display:flex; gap:.25rem; opacity:0; transition:opacity .15s; z-index:10; }
+.turma-card:hover .turma-actions { opacity:1; }
+.action-btn { width:1.625rem; height:1.625rem; border-radius:.5rem; background:white; border:1px solid #e5e7eb; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .13s; }
+.action-btn:hover { border-color:#d1d5db; background:#f9fafb; }
+.action-btn--del:hover { border-color:#fecaca; background:#fef2f2; }
+
+.turma-link { display:flex; flex-direction:column; gap:.75rem; padding:1rem; text-decoration:none; }
+.turma-badge { width:2.75rem; height:2.75rem; border-radius:.75rem; color:white; font-size:.75rem; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.turma-info  { display:flex; flex-direction:column; gap:.2rem; }
+.turma-disc  { font-size:.7rem; color:#6b7280; }
+.turma-alunos{ font-size:.7rem; color:#9ca3af; }
+.skel-tiny   { display:inline-block; width:3rem; height:.625rem; background:#f3f4f6; border-radius:.25rem; animation:shimmer 1.5s ease-in-out infinite; }
+
+/* Buttons */
+.btn-primary,.btn-secondary,.btn-cancel,.btn-danger {
+  display:inline-flex; align-items:center; gap:.4rem; padding:.6rem 1.1rem;
+  font-size:.8rem; font-weight:700; border-radius:.75rem; cursor:pointer; white-space:nowrap;
+  transition:all .13s; border:none; text-decoration:none;
+}
+.btn-primary  { background:#111827; color:white; } .btn-primary:hover:not(:disabled) { background:#1f2937; } .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-secondary{ background:white; color:#374151; border:1px solid #e5e7eb; } .btn-secondary:hover { background:#f9fafb; }
+.btn-cancel   { background:white; color:#6b7280; border:1px solid #e5e7eb; } .btn-cancel:hover { background:#f9fafb; }
+.btn-danger   { background:#ef4444; color:white; } .btn-danger:hover:not(:disabled) { background:#dc2626; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:1rem; background:rgba(0,0,0,.25); backdrop-filter:blur(2px); }
+.modal-box { background:white; border-radius:1rem; padding:1.5rem; width:100%; max-width:22rem; display:flex; flex-direction:column; gap:1rem; }
+.modal-box--wide { max-width:30rem; }
+.modal-title { font-size:1rem; font-weight:800; color:#111827; margin:0; }
+.modal-sub   { font-size:.8rem; color:#6b7280; margin:0; }
+.modal-body  { font-size:.8rem; color:#6b7280; margin:0; line-height:1.5; }
+.modal-actions { display:flex; gap:.5rem; margin-top:.25rem; }
+.modal-icon-wrap { width:2.5rem; height:2.5rem; border-radius:.75rem; display:flex; align-items:center; justify-content:center; }
+
+/* Field */
+.field       { display:flex; flex-direction:column; gap:.375rem; }
+.field-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; }
+.field-select{ padding:.5rem .75rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.8rem; color:#111827; outline:none; background:white; }
+.field-hint  { font-size:.7rem; color:#9ca3af; }
+.error-msg   { font-size:.72rem; color:#ef4444; font-weight:600; }
+
+.toggle-group { display:grid; grid-template-columns:1fr 1fr; gap:.4rem; }
+.toggle-btn   { padding:.5rem .75rem; border-radius:.625rem; border:1.5px solid; font-size:.78rem; font-weight:700; cursor:pointer; transition:all .13s; }
+.toggle-btn--off { border-color:#e5e7eb; background:#fafafa; color:#6b7280; }
+.toggle-btn--on  { border-color:#111827; background:#111827; color:white; }
+
+.opt-grid { display:flex; flex-wrap:wrap; gap:.35rem; }
+.opt-btn  { padding:.375rem .75rem; border-radius:.625rem; border:1.5px solid #e5e7eb; background:white; font-size:.78rem; font-weight:700; cursor:pointer; transition:all .13s; color:#374151; }
+.opt-btn:hover   { border-color:#d1d5db; }
+.opt-btn--on     { border-color:#3b82f6; background:#eff6ff; color:#1d4ed8; }
+
+.preview-box { padding:.625rem .875rem; background:#f0f9ff; border:1px solid #bae6fd; border-radius:.625rem; font-size:.8rem; color:#0369a1; }
+
+.drop-zone { border:2px dashed #e5e7eb; border-radius:.875rem; padding:1.5rem 1rem; display:flex; flex-direction:column; align-items:center; gap:.5rem; cursor:pointer; transition:all .15s; }
+.drop-zone:hover, .drop-zone--drag { border-color:#60a5fa; background:#eff6ff; }
+.drop-zone--ok   { border-color:#34d399; background:#f0fdf4; }
+.drop-label { font-size:.78rem; color:#6b7280; text-align:center; }
+
+.result-box { padding:.625rem .875rem; border-radius:.625rem; font-size:.78rem; font-weight:600; }
+.result-box--ok  { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.result-box--err { background:#fef2f2; border:1px solid #fecaca; color:#dc2626; }
+
+.clone-grid { display:flex; flex-wrap:wrap; gap:.5rem; max-height:12rem; overflow-y:auto; border:1px solid #f3f4f6; border-radius:.75rem; padding:.75rem; }
+.clone-item { display:flex; align-items:center; gap:.5rem; font-size:.8rem; color:#374151; cursor:pointer; min-width:6rem; }
+
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.45} }
+.modal-enter-active { transition:opacity .18s ease; } .modal-leave-active { transition:opacity .15s ease; }
+.modal-enter-from, .modal-leave-to { opacity:0; }
 </style>

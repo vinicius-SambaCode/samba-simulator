@@ -1,267 +1,167 @@
-<!-- pages/dashboard/coordenador/turmas/[id].vue -->
 <template>
-  <div class="space-y-5">
+  <div class="page">
 
-    <!-- Voltar -->
-    <div class="animate-fade-in">
-      <NuxtLink to="/dashboard/coordenador/turmas"
-        class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-700 transition-colors mb-4">
-        <Icon name="lucide:arrow-left" class="w-3.5 h-3.5" />
-        Todas as turmas
-      </NuxtLink>
-
-      <!-- Header skeleton -->
-      <div v-if="loading" class="h-16 bg-white rounded-2xl border border-gray-100 animate-pulse" />
-
-      <!-- Header -->
-      <div v-else class="flex items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
-          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-sm"
-            :class="corBg">
-            {{ turma?.name }}
-          </div>
-          <div>
-            <h2 class="text-2xl font-black text-gray-900 tracking-tight">{{ turma?.name }}</h2>
-            <p class="text-sm text-gray-400 mt-0.5">
-              {{ turma?.grade?.level === 'fundamental' ? 'Ensino Fundamental' : 'Ensino Médio' }} · Turma #{{ turma?.id }}
-            </p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button
-            class="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95"
-            @click="showAlunoModal = true">
-            <Icon name="lucide:user-plus" class="w-4 h-4" />
-            <span class="hidden sm:inline">Adicionar aluno</span>
-          </button>
-          <button
-            class="flex items-center gap-2 px-4 py-2.5 border border-red-200 hover:bg-red-50 text-red-500 text-sm font-bold rounded-xl transition-all active:scale-95"
-            @click="showDeleteModal = true">
-            <Icon name="lucide:trash-2" class="w-4 h-4" />
-            <span class="hidden sm:inline">Excluir</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-3 gap-3 animate-fade-up" style="animation-delay:60ms">
-      <div v-for="s in statCards" :key="s.label"
-        class="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" :class="s.iconBg">
-          <Icon :name="s.icon" class="w-4 h-4" :class="s.iconColor" />
-        </div>
+    <div class="page-header fade-in" :class="{ ready: mounted }">
+      <div class="flex items-center gap-3">
+        <NuxtLink to="/dashboard/coordenador/turmas" class="back-btn">
+          <Icon name="lucide:arrow-left" class="w-4 h-4" />
+        </NuxtLink>
         <div>
-          <p class="text-xl font-black text-gray-900 tabular-nums leading-none">
-            <span v-if="loading" class="inline-block w-6 h-5 bg-gray-100 rounded animate-pulse" />
-            <span v-else>{{ s.value }}</span>
+          <h1 class="page-title">
+            <span v-if="loading" class="skel-line" />
+            <span v-else>Turma {{ turma?.name }}</span>
+          </h1>
+          <p class="page-sub">
+            <span v-if="!loading">{{ students.length }} aluno{{ students.length!==1?'s':'' }} · {{ disciplines.length }} disciplina{{ disciplines.length!==1?'s':'' }}</span>
+            <span v-else class="skel-line skel-line--sm" />
           </p>
-          <p class="text-[11px] text-gray-400 font-medium mt-0.5">{{ s.label }}</p>
         </div>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn-secondary" @click="showImportModal = true">
+          <Icon name="lucide:upload" class="w-4 h-4" /> CSV
+        </button>
+        <button class="btn-secondary" @click="showAddStudent = true">
+          <Icon name="lucide:user-plus" class="w-4 h-4" /> Aluno
+        </button>
+        <button class="btn-primary" @click="showAddDisc = true">
+          <Icon name="lucide:plus" class="w-4 h-4" /> Disciplina
+        </button>
       </div>
     </div>
 
-    <!-- Alunos + Simulados -->
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+    <div class="main-grid fade-in" :class="{ ready: mounted }" style="--d:.06s">
+
+      <!-- Disciplinas -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><Icon name="lucide:book-open" class="w-4 h-4 text-gray-400" /> Disciplinas</div>
+          <span class="count-badge">{{ disciplines.length }}</span>
+        </div>
+        <div v-if="loading" class="card-loading">
+          <div v-for="i in 3" :key="i" class="skel-row" :style="`--i:${i}`" />
+        </div>
+        <div v-else-if="!disciplines.length" class="card-empty">
+          <Icon name="lucide:book-open" class="w-7 h-7 text-gray-200" />
+          <p>Nenhuma disciplina vinculada</p>
+          <button class="link-btn" @click="showAddDisc = true">Adicionar disciplina →</button>
+        </div>
+        <ul v-else class="item-list">
+          <li v-for="d in disciplines" :key="d.id" class="item-row">
+            <div class="item-icon bg-indigo-50">
+              <Icon name="lucide:book-open" class="w-3.5 h-3.5 text-indigo-400" />
+            </div>
+            <span class="item-label">{{ d.name }}</span>
+            <button class="del-btn" @click="removeDisc(d.id)" title="Remover">
+              <Icon name="lucide:x" class="w-3.5 h-3.5" />
+            </button>
+          </li>
+        </ul>
+      </div>
 
       <!-- Alunos -->
-      <div class="lg:col-span-3 bg-white rounded-2xl border border-gray-100 overflow-hidden animate-fade-up" style="animation-delay:100ms">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-          <div class="flex items-center gap-2">
-            <Icon name="lucide:graduation-cap" class="w-4 h-4 text-gray-400" />
-            <h3 class="text-sm font-bold text-gray-900">Alunos</h3>
-            <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-500">{{ students.length }}</span>
-          </div>
-          <div class="relative">
-            <Icon name="lucide:search" class="w-3 h-3 text-gray-300 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input v-model="busca"
-              class="pl-7 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all w-36"
-              placeholder="Nome ou RA..." />
-          </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><Icon name="lucide:users" class="w-4 h-4 text-gray-400" /> Alunos</div>
+          <span class="count-badge">{{ students.length }}</span>
         </div>
 
-        <div v-if="loadingStudents" class="p-4 space-y-2">
-          <div v-for="i in 5" :key="i" class="h-11 bg-gray-50 rounded-xl animate-pulse" :style="`animation-delay:${i*60}ms`" />
+        <div class="card-search">
+          <Icon name="lucide:search" class="search-icon" />
+          <input v-model="busca" placeholder="Buscar por nome ou RA..." class="search-input" />
+          <button v-if="busca" class="search-clear" @click="busca = ''">
+            <Icon name="lucide:x" class="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        <div v-else-if="alunosFiltrados.length === 0"
-          class="flex flex-col items-center justify-center py-14">
-          <Icon name="lucide:users" class="w-8 h-8 text-gray-200 mb-2" />
-          <p class="text-xs text-gray-400 font-medium">
-            {{ busca ? 'Nenhum resultado' : 'Nenhum aluno cadastrado' }}
-          </p>
+        <div v-if="loading" class="card-loading">
+          <div v-for="i in 4" :key="i" class="skel-row" :style="`--i:${i}`" />
         </div>
-
-        <div v-else class="divide-y divide-gray-50 max-h-[480px] overflow-y-auto">
-          <div
-            v-for="(aluno, i) in alunosFiltrados" :key="aluno.id"
-            class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors group animate-fade-up"
-            :style="`animation-delay:${i*25}ms`">
-            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0"
-              :class="corBg">
-              {{ aluno.name[0] }}
+        <div v-else-if="!alunosFiltrados.length" class="card-empty">
+          <Icon name="lucide:users" class="w-7 h-7 text-gray-200" />
+          <p>{{ busca ? 'Nenhum aluno encontrado' : 'Nenhum aluno cadastrado' }}</p>
+          <button v-if="!busca" class="link-btn" @click="showAddStudent = true">Adicionar aluno →</button>
+        </div>
+        <ul v-else class="item-list student-list">
+          <li v-for="s in alunosFiltrados" :key="s.id" class="item-row">
+            <div class="student-avatar">{{ initials(s.name) }}</div>
+            <div class="student-info">
+              <span class="item-label">{{ s.name }}</span>
+              <span class="student-ra">RA {{ s.ra }}</span>
             </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-gray-800 truncate">{{ aluno.name }}</p>
-              <p class="text-[11px] text-gray-400 font-mono">RA: {{ aluno.ra }}</p>
-            </div>
-            <button
-              class="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center transition-all"
-              @click="deleteAluno(aluno.id)">
-              <Icon name="lucide:trash-2" class="w-3.5 h-3.5 text-red-400" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Simulados -->
-      <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden animate-fade-up" style="animation-delay:140ms">
-        <div class="flex items-center gap-2 px-5 py-4 border-b border-gray-50">
-          <Icon name="lucide:file-text" class="w-4 h-4 text-gray-400" />
-          <h3 class="text-sm font-bold text-gray-900">Simulados</h3>
-          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-500">{{ exams.length }}</span>
-        </div>
-
-        <div v-if="loadingExams" class="p-4 space-y-2">
-          <div v-for="i in 3" :key="i" class="h-14 bg-gray-50 rounded-xl animate-pulse" />
-        </div>
-
-        <div v-else-if="exams.length === 0"
-          class="flex flex-col items-center justify-center py-14 px-4 text-center">
-          <Icon name="lucide:file-x" class="w-8 h-8 text-gray-200 mb-2" />
-          <p class="text-xs text-gray-400 font-medium">Nenhum simulado vinculado</p>
-        </div>
-
-        <div v-else class="divide-y divide-gray-50">
-          <NuxtLink
-            v-for="exam in exams" :key="exam.id"
-            :to="`/dashboard/coordenador/simulados/${exam.id}`"
-            class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/60 transition-colors group">
-            <div class="w-2 h-2 rounded-full flex-shrink-0" :class="statusDot(exam.status)" />
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-gray-800 truncate group-hover:text-blue-600 transition-colors">{{ exam.title }}</p>
-              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" :class="statusBadge(exam.status)">
-                {{ statusLabel(exam.status) }}
-              </span>
-            </div>
-            <Icon name="lucide:chevron-right" class="w-3.5 h-3.5 text-gray-200 group-hover:text-blue-400 flex-shrink-0 transition-colors" />
-          </NuxtLink>
-        </div>
+          </li>
+        </ul>
       </div>
     </div>
 
-    <!-- Modal adicionar aluno -->
+    <!-- Modal adicionar disciplina -->
     <Transition name="modal">
-      <div v-if="showAlunoModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showAlunoModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h3 class="text-base font-black text-gray-900">Adicionar aluno</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Turma {{ turma?.name }}</p>
-            </div>
-            <button class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors"
-              @click="showAlunoModal = false">
-              <Icon name="lucide:x" class="w-4 h-4 text-gray-400" />
-            </button>
+      <div v-if="showAddDisc" class="modal-overlay" @click.self="showAddDisc = false">
+        <div class="modal-box">
+          <h3 class="modal-title">Adicionar disciplina</h3>
+          <div class="field">
+            <label class="field-label">Disciplina</label>
+            <select v-model="discForm.discipline_id" class="field-select">
+              <option value="">Selecione...</option>
+              <option v-for="d in discOptions" :key="d.id" :value="d.id">{{ d.name }}</option>
+            </select>
           </div>
-          <div class="space-y-3">
-            <div>
-              <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Nome completo</label>
-              <input v-model="alunoForm.name" placeholder="Ex: Maria Silva"
-                class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all" />
-            </div>
-            <div>
-              <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">RA</label>
-              <!-- Máscara RA: usuário digita apenas os 10 dígitos; exibe preview "0000 + dígitos" -->
-              <div class="relative">
-                <input
-                  v-model="alunoForm.raRaw"
-                  @input="onRaInput"
-                  placeholder="Digite os 10 dígitos do RA"
-                  maxlength="10"
-                  inputmode="numeric"
-                  class="w-full px-3 py-2.5 rounded-xl text-sm transition-all outline-none"
-                  :class="raValidClass"
-                />
-                <!-- preview do RA formatado -->
-                <div v-if="alunoForm.raRaw"
-                  class="mt-1 flex items-center gap-1.5 text-[11px]"
-                  :class="raDigits.length === 10 ? 'text-emerald-600' : 'text-gray-400'">
-                  <span class="font-mono font-semibold tracking-wider">
-                    <span class="text-gray-300">0000</span>{{ raDigits.padEnd(10, '·') }}
-                  </span>
-                  <span v-if="raDigits.length === 10" class="text-emerald-500">✓ RA válido</span>
-                  <span v-else class="text-gray-400">{{ raDigits.length }}/10 dígitos</span>
-                </div>
-              </div>
-            </div>
-            <div v-if="alunoError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl">
-              <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-              <p class="text-xs text-red-500 font-medium">{{ alunoError }}</p>
-            </div>
-            <button
-              :disabled="!alunoForm.name || raDigits.length !== 10 || savingAluno"
-              class="w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-              :class="!alunoForm.name || raDigits.length !== 10 || savingAluno
-                ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                : 'bg-gray-900 hover:bg-gray-700 text-white active:scale-95'"
-              @click="createAluno">
-              <svg v-if="savingAluno" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              {{ savingAluno ? 'Salvando...' : 'Adicionar' }}
+          <p v-if="discError" class="error-msg">{{ discError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showAddDisc = false">Cancelar</button>
+            <button class="btn-primary" :disabled="!discForm.discipline_id || savingDisc" @click="addDisc">
+              {{ savingDisc ? 'Adicionando...' : 'Adicionar' }}
             </button>
           </div>
         </div>
       </div>
     </Transition>
 
-    <!-- Modal excluir turma -->
+    <!-- Modal adicionar aluno -->
     <Transition name="modal">
-      <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showDeleteModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-              <Icon name="lucide:trash-2" class="w-5 h-5 text-red-500" />
-            </div>
-            <div>
-              <h3 class="text-base font-black text-gray-900">Excluir turma</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Esta ação não pode ser desfeita</p>
-            </div>
+      <div v-if="showAddStudent" class="modal-overlay" @click.self="showAddStudent = false">
+        <div class="modal-box">
+          <h3 class="modal-title">Adicionar aluno</h3>
+          <div class="field">
+            <label class="field-label">Nome completo</label>
+            <input v-model="studentForm.name" placeholder="Nome do aluno" class="field-input" />
           </div>
-
-          <p class="text-sm text-gray-600 mb-5">
-            Tem certeza que deseja excluir a turma
-            <span class="font-black text-gray-900">{{ turma?.name }}</span>?
-            Os {{ students.length }} aluno{{ students.length !== 1 ? 's' : '' }} serão desvinculados.
-          </p>
-
-          <div v-if="deleteError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl mb-4">
-            <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-            <p class="text-xs text-red-500 font-medium">{{ deleteError }}</p>
+          <div class="field">
+            <label class="field-label">RA</label>
+            <input v-model="studentForm.ra" placeholder="Registro do Aluno" class="field-input" />
           </div>
-
-          <div class="flex gap-2">
-            <button
-              class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all"
-              @click="showDeleteModal = false">
-              Cancelar
+          <p v-if="studentError" class="error-msg">{{ studentError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showAddStudent = false">Cancelar</button>
+            <button class="btn-primary" :disabled="!studentForm.name || !studentForm.ra || savingStudent" @click="addStudent">
+              {{ savingStudent ? 'Salvando...' : 'Adicionar' }}
             </button>
-            <button
-              :disabled="deleting"
-              class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-              :class="deleting
-                ? 'bg-red-200 text-red-300 cursor-not-allowed'
-                : 'bg-red-500 hover:bg-red-600 text-white active:scale-95'"
-              @click="deleteClass">
-              <svg v-if="deleting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              {{ deleting ? 'Excluindo...' : 'Sim, excluir' }}
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Modal importar CSV -->
+    <Transition name="modal">
+      <div v-if="showImportModal" class="modal-overlay" @click.self="closeImport">
+        <div class="modal-box">
+          <h3 class="modal-title">Importar alunos via CSV</h3>
+          <div class="drop-zone"
+            :class="isDragging ? 'drop-zone--drag' : csvFile ? 'drop-zone--ok' : ''"
+            @dragover.prevent="isDragging=true" @dragleave="isDragging=false" @drop.prevent="onDrop"
+            @click="($refs.csvInput as HTMLInputElement).click()">
+            <input ref="csvInput" type="file" accept=".csv" class="hidden" @change="onFileChange" />
+            <Icon :name="csvFile ? 'lucide:file-check' : 'lucide:upload-cloud'" class="w-8 h-8"
+              :class="csvFile ? 'text-emerald-400' : 'text-gray-300'" />
+            <span class="drop-label">{{ csvFile ? csvFile.name : 'Arraste ou clique para selecionar' }}</span>
+          </div>
+          <div v-if="importResult" class="result-box" :class="importResult.error ? 'result-box--err' : 'result-box--ok'">
+            {{ importResult.message }}
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeImport">Fechar</button>
+            <button class="btn-primary" :disabled="!csvFile || importing" @click="importCsv">
+              {{ importing ? 'Importando...' : 'Importar' }}
             </button>
           </div>
         </div>
@@ -274,162 +174,171 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard' })
 
-const route = useRoute()
+const route   = useRoute()
 const { get, post, delete: del } = useApi()
-
 const classId = computed(() => Number(route.params.id))
+const mounted = ref(false)
 
-const turma           = ref<any>(null)
-const students        = ref<any[]>([])
-const exams           = ref<any[]>([])
-const loading         = ref(true)
-const loadingStudents = ref(true)
-const loadingExams    = ref(true)
-const busca           = ref('')
+const turma       = ref<any>(null)
+const students    = ref<any[]>([])
+const disciplines = ref<any[]>([])
+const allDiscs    = ref<any[]>([])
+const loading     = ref(true)
+const busca       = ref('')
 
-const showAlunoModal = ref(false)
-const savingAluno    = ref(false)
-const alunoError     = ref('')
-const alunoForm      = reactive({ name: '', raRaw: '' })
+const showAddDisc     = ref(false); const discError    = ref(''); const savingDisc    = ref(false)
+const showAddStudent  = ref(false); const studentError = ref(''); const savingStudent = ref(false)
+const showImportModal = ref(false); const importResult = ref<any>(null); const importing = ref(false)
 
-// ─── Lógica do RA ────────────────────────────────────────────────────────────
-// raRaw: o que o usuário digita (apenas dígitos, max 10)
-// raDigits: só os dígitos numéricos extraídos de raRaw
-// O backend recebe os 10 dígitos e adiciona o prefixo "0000" automaticamente
-
-const raDigits = computed(() =>
-  alunoForm.raRaw.replace(/\D/g, '').slice(0, 10)
-)
-
-const raValidClass = computed(() => {
-  const n = raDigits.value.length
-  if (!n) return 'border border-gray-200 focus:ring-2 focus:ring-blue-200 focus:border-blue-300'
-  if (n === 10) return 'border border-emerald-300 focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400'
-  return 'border border-amber-300 focus:ring-2 focus:ring-amber-200 focus:border-amber-400'
-})
-
-function onRaInput(e: Event) {
-  // Mantém só dígitos e limita a 10
-  const raw = (e.target as HTMLInputElement).value
-  const clean = raw.replace(/\D/g, '').slice(0, 10)
-  alunoForm.raRaw = clean
-}
-
-const showDeleteModal = ref(false)
-const deleting        = ref(false)
-const deleteError     = ref('')
-
-const coresMedio = ['bg-blue-500', 'bg-violet-500', 'bg-indigo-500', 'bg-sky-500', 'bg-purple-500']
-const coresFund  = ['bg-emerald-500', 'bg-teal-500', 'bg-green-500', 'bg-cyan-500', 'bg-lime-600']
-
-const corBg = computed(() => {
-  const isFund = turma.value?.grade?.level === 'fundamental'
-  const palette = isFund ? coresFund : coresMedio
-  return palette[classId.value % palette.length]
-})
-
-const statCards = computed(() => [
-  { label: 'Alunos',    value: students.value.length, icon: 'lucide:graduation-cap', iconBg: 'bg-blue-50',   iconColor: 'text-blue-500'   },
-  { label: 'Simulados', value: exams.value.length,    icon: 'lucide:file-text',      iconBg: 'bg-violet-50', iconColor: 'text-violet-500' },
-  { label: 'Turma ID',  value: `#${classId.value}`,  icon: 'lucide:hash',           iconBg: 'bg-gray-50',   iconColor: 'text-gray-400'   },
-])
+const discForm    = reactive({ discipline_id: '' })
+const studentForm = reactive({ name: '', ra: '' })
+const csvFile     = ref<File | null>(null)
+const isDragging  = ref(false)
 
 const alunosFiltrados = computed(() => {
+  if (!busca.value) return students.value
   const q = busca.value.toLowerCase()
-  if (!q) return students.value
-  return students.value.filter(a =>
-    a.name.toLowerCase().includes(q) || a.ra.includes(q)
-  )
+  return students.value.filter(s => s.name.toLowerCase().includes(q) || s.ra.toLowerCase().includes(q))
+})
+const discOptions = computed(() => {
+  const ids = new Set(disciplines.value.map(d => d.id))
+  return allDiscs.value.filter(d => !ids.has(d.id))
 })
 
-function statusLabel(s: string) {
-  return ({ collecting: 'Em coleta', locked: 'Travado', published: 'Publicado', draft: 'Rascunho' } as any)[s] ?? s
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')
 }
-function statusBadge(s: string) {
-  return ({ collecting: 'bg-amber-50 text-amber-700', locked: 'bg-blue-50 text-blue-700', published: 'bg-emerald-50 text-emerald-700' } as any)[s] ?? 'bg-gray-50 text-gray-500'
-}
-function statusDot(s: string) {
-  return ({ collecting: 'bg-amber-400', locked: 'bg-blue-400', published: 'bg-emerald-400' } as any)[s] ?? 'bg-gray-300'
-}
+function closeImport() { showImportModal.value = false; csvFile.value = null; importResult.value = null; isDragging.value = false }
+function onFileChange(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (f) { csvFile.value = f; importResult.value = null } }
+function onDrop(e: DragEvent) { isDragging.value = false; const f = e.dataTransfer?.files?.[0]; if (f?.name.endsWith('.csv')) { csvFile.value = f; importResult.value = null } }
 
-async function createAluno() {
-  if (!alunoForm.name || raDigits.value.length !== 10) return
-  savingAluno.value = true
-  alunoError.value = ''
+async function addDisc() {
+  savingDisc.value = true; discError.value = ''
   try {
-    const created = await post<any>('/school/students/', {
-      name:     alunoForm.name,
-      ra:       raDigits.value,   // backend normaliza para "0000" + 10 dígitos
-      class_id: classId.value,
-    })
-    students.value.push(created)
-    alunoForm.name   = ''
-    alunoForm.raRaw  = ''
-    showAlunoModal.value = false
-  } catch (e: any) {
-    alunoError.value = e.message ?? 'Erro ao adicionar aluno.'
-  } finally {
-    savingAluno.value = false
-  }
+    await post(`/school/classes/${classId.value}/disciplines`, { discipline_id: Number(discForm.discipline_id) })
+    disciplines.value = await get<any[]>(`/school/classes/${classId.value}/disciplines`)
+    showAddDisc.value = false; discForm.discipline_id = ''
+  } catch (e: any) { discError.value = e.message ?? 'Erro ao adicionar.' } finally { savingDisc.value = false }
 }
-
-async function deleteAluno(id: number) {
-  if (!confirm('Remover este aluno da turma?')) return
+async function removeDisc(discId: number) {
   try {
-    await del(`/school/students/${id}`)
-    students.value = students.value.filter(a => a.id !== id)
-  } catch (e: any) {
-    alert(e.message ?? 'Erro ao remover aluno.')
-  }
+    await del(`/school/classes/${classId.value}/disciplines/${discId}`)
+    disciplines.value = disciplines.value.filter(d => d.id !== discId)
+  } catch {}
 }
-
-async function deleteClass() {
-  deleting.value = true
-  deleteError.value = ''
+async function addStudent() {
+  savingStudent.value = true; studentError.value = ''
   try {
-    await del(`/school/classes/${classId.value}`)
-    navigateTo('/dashboard/coordenador/turmas')
-  } catch (e: any) {
-    deleteError.value = e.message ?? 'Erro ao excluir turma.'
-    deleting.value = false
-  }
+    const st = await post<any>('/school/students/', { name: studentForm.name, ra: studentForm.ra, class_id: classId.value })
+    students.value.push(st)
+    showAddStudent.value = false; studentForm.name = ''; studentForm.ra = ''
+  } catch (e: any) { studentError.value = e.message ?? 'Erro ao adicionar aluno.' } finally { savingStudent.value = false }
+}
+async function importCsv() {
+  if (!csvFile.value) return
+  importing.value = true; importResult.value = null
+  try {
+    const fd = new FormData(); fd.append('file', csvFile.value)
+    const { upload } = useApi()
+    const res = await upload<any>(`/school/students/import?class_id=${classId.value}&dry_run=false`, fd)
+    importResult.value = { error: false, message: `${res.created} criado(s), ${res.updated} atualizado(s).` }
+    students.value = await get<any[]>(`/school/students/?class_id=${classId.value}`)
+    csvFile.value = null
+  } catch (e: any) { importResult.value = { error: true, message: e.message ?? 'Erro ao importar.' } } finally { importing.value = false }
 }
 
 onMounted(async () => {
-  const [classList, studentList, examList] = await Promise.allSettled([
-    get<any[]>('/school/classes'),
+  await nextTick(); setTimeout(() => { mounted.value = true }, 30)
+  const [turmaRes, studentsRes, discRes, allDiscRes] = await Promise.allSettled([
+    get<any>(`/school/classes/${classId.value}`),
     get<any[]>(`/school/students/?class_id=${classId.value}`),
-    get<any[]>('/exams/'),
+    get<any[]>(`/school/classes/${classId.value}/disciplines`),
+    get<any[]>('/disciplines/'),
   ])
-
-  if (classList.status === 'fulfilled') {
-    turma.value = classList.value.find((c: any) => c.id === classId.value) ?? null
-  }
+  if (turmaRes.status    === 'fulfilled') turma.value       = turmaRes.value
+  if (studentsRes.status === 'fulfilled') students.value    = studentsRes.value
+  if (discRes.status     === 'fulfilled') disciplines.value = discRes.value
+  if (allDiscRes.status  === 'fulfilled') allDiscs.value    = allDiscRes.value
   loading.value = false
-
-  if (studentList.status === 'fulfilled') students.value = studentList.value
-  loadingStudents.value = false
-
-  if (examList.status === 'fulfilled') {
-    const all = examList.value
-    const filtered = all.filter((e: any) =>
-      e.class_ids?.includes(classId.value) || e.classes?.includes(classId.value)
-    )
-    exams.value = filtered
-  }
-  loadingExams.value = false
 })
 </script>
 
 <style scoped>
-@keyframes fade-in  { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
-@keyframes fade-up  { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-@keyframes modal-in { from { opacity:0; transform:scale(0.94) translateY(10px) } to { opacity:1; transform:scale(1) translateY(0) } }
+.page { display:flex; flex-direction:column; gap:1.25rem; padding-bottom:2rem; }
+.fade-in { opacity:0; transform:translateY(10px); transition:opacity .35s ease var(--d,.0s), transform .35s ease var(--d,.0s); }
+.fade-in.ready { opacity:1; transform:translateY(0); }
 
-.animate-fade-in  { animation: fade-in  0.3s ease both }
-.animate-fade-up  { animation: fade-up  0.38s ease both }
-.animate-modal-in { animation: modal-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both }
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.page-title  { font-size:1.35rem; font-weight:800; color:#111827; margin:0 0 .2rem; }
+.page-sub    { font-size:.8rem; color:#9ca3af; margin:0; }
+.back-btn    { width:2rem; height:2rem; border-radius:.625rem; display:flex; align-items:center; justify-content:center; background:white; border:1px solid #e5e7eb; color:#6b7280; cursor:pointer; text-decoration:none; transition:background .13s; flex-shrink:0; }
+.back-btn:hover { background:#f9fafb; }
+.skel-line   { display:inline-block; width:10rem; height:.875rem; background:#f3f4f6; border-radius:.375rem; animation:shimmer 1.5s ease-in-out infinite; }
+.skel-line--sm { width:7rem; height:.75rem; }
 
-.modal-enter-active, .modal-leave-active { transition: opacity 0.18s ease }
-.modal-enter-from, .modal-leave-to { opacity: 0 }
+.main-grid { display:grid; grid-template-columns:1fr; gap:.75rem; }
+@media(min-width:768px) { .main-grid { grid-template-columns:280px 1fr; align-items:start; } }
+
+.card { background:white; border:1px solid #f3f4f6; border-radius:1rem; overflow:hidden; }
+.card-header { display:flex; align-items:center; justify-content:space-between; padding:.875rem 1.25rem; border-bottom:1px solid #f9fafb; }
+.card-title  { display:flex; align-items:center; gap:.5rem; font-size:.8rem; font-weight:700; color:#111827; }
+.count-badge { font-size:.65rem; font-weight:700; padding:.1rem .4rem; border-radius:9999px; background:#f3f4f6; color:#6b7280; }
+.card-loading { padding:.75rem 1rem; display:flex; flex-direction:column; gap:.5rem; }
+.skel-row { height:2.75rem; background:#f9fafb; border-radius:.625rem; animation:shimmer 1.5s ease-in-out infinite; animation-delay:calc(var(--i,0)*100ms); }
+.card-empty { display:flex; flex-direction:column; align-items:center; gap:.5rem; padding:2.5rem 1rem; text-align:center; }
+.card-empty p { font-size:.78rem; color:#9ca3af; margin:0; }
+.card-search { padding:.625rem 1rem; border-bottom:1px solid #f9fafb; position:relative; }
+.search-icon  { position:absolute; left:1.75rem; top:50%; transform:translateY(-50%); width:.875rem; height:.875rem; color:#d1d5db; }
+.search-input { width:100%; padding:.5rem .75rem .5rem 2.25rem; border:1px solid #f3f4f6; border-radius:.625rem; font-size:.78rem; background:#fafafa; outline:none; transition:border-color .13s; }
+.search-input:focus { border-color:#93c5fd; background:white; }
+.search-clear { position:absolute; right:1.5rem; top:50%; transform:translateY(-50%); color:#d1d5db; }
+.search-clear:hover { color:#6b7280; }
+
+.item-list  { list-style:none; margin:0; padding:0; }
+.item-row   { display:flex; align-items:center; gap:.75rem; padding:.7rem 1.25rem; border-bottom:1px solid #f9fafb; }
+.item-row:last-child { border-bottom:none; }
+.item-icon  { width:1.875rem; height:1.875rem; border-radius:.5rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.item-label { flex:1; font-size:.8rem; font-weight:600; color:#374151; }
+.del-btn    { width:1.5rem; height:1.5rem; border-radius:.375rem; background:none; border:none; cursor:pointer; color:#d1d5db; display:flex; align-items:center; justify-content:center; transition:all .13s; }
+.del-btn:hover { color:#ef4444; background:#fef2f2; }
+.link-btn   { font-size:.72rem; font-weight:600; color:#3b82f6; background:none; border:none; cursor:pointer; }
+.link-btn:hover { color:#2563eb; }
+
+.student-list { max-height:32rem; overflow-y:auto; }
+.student-avatar { width:2rem; height:2rem; border-radius:9999px; background:#e0e7ff; color:#3730a3; font-size:.65rem; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.student-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:.1rem; }
+.student-ra { font-size:.65rem; color:#9ca3af; }
+
+/* Buttons */
+.btn-primary,.btn-secondary,.btn-cancel {
+  display:inline-flex; align-items:center; gap:.4rem; padding:.55rem 1rem;
+  font-size:.78rem; font-weight:700; border-radius:.75rem; cursor:pointer;
+  white-space:nowrap; transition:all .13s; border:none; text-decoration:none;
+}
+.btn-primary  { background:#111827; color:white; } .btn-primary:hover:not(:disabled) { background:#1f2937; } .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-secondary{ background:white; color:#374151; border:1px solid #e5e7eb; } .btn-secondary:hover { background:#f9fafb; }
+.btn-cancel   { background:white; color:#6b7280; border:1px solid #e5e7eb; } .btn-cancel:hover { background:#f9fafb; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:1rem; background:rgba(0,0,0,.25); backdrop-filter:blur(2px); }
+.modal-box { background:white; border-radius:1rem; padding:1.5rem; width:100%; max-width:22rem; display:flex; flex-direction:column; gap:.875rem; }
+.modal-title  { font-size:1rem; font-weight:800; color:#111827; margin:0; }
+.modal-actions { display:flex; gap:.5rem; }
+.field        { display:flex; flex-direction:column; gap:.375rem; }
+.field-label  { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; }
+.field-input  { padding:.5rem .75rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.8rem; color:#111827; outline:none; }
+.field-input:focus { border-color:#93c5fd; box-shadow:0 0 0 3px #eff6ff; }
+.field-select { padding:.5rem .75rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.8rem; color:#111827; outline:none; background:white; }
+.error-msg    { font-size:.72rem; color:#ef4444; font-weight:600; }
+.drop-zone    { border:2px dashed #e5e7eb; border-radius:.875rem; padding:2rem 1rem; display:flex; flex-direction:column; align-items:center; gap:.625rem; cursor:pointer; transition:all .15s; }
+.drop-zone:hover,.drop-zone--drag { border-color:#60a5fa; background:#eff6ff; }
+.drop-zone--ok { border-color:#34d399; background:#f0fdf4; }
+.drop-label   { font-size:.78rem; color:#6b7280; text-align:center; }
+.result-box   { padding:.625rem .875rem; border-radius:.625rem; font-size:.78rem; font-weight:600; }
+.result-box--ok  { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.result-box--err { background:#fef2f2; border:1px solid #fecaca; color:#dc2626; }
+
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.45} }
+.modal-enter-active { transition:opacity .18s ease; } .modal-leave-active { transition:opacity .15s ease; }
+.modal-enter-from, .modal-leave-to { opacity:0; }
 </style>

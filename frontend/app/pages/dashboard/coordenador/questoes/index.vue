@@ -1,163 +1,79 @@
-<!-- pages/dashboard/coordenador/questoes.vue -->
 <template>
-  <div class="space-y-5">
+  <div class="page">
 
-    <!-- Header -->
-    <div class="animate-fade-in">
-      <h2 class="text-xl font-black text-gray-900 tracking-tight">Questões</h2>
-      <p class="text-sm text-gray-400 mt-0.5">
-        <span v-if="!loading">{{ questoesFiltradas.length }} {{ questoesFiltradas.length !== 1 ? 'questões encontradas' : 'questão encontrada' }}</span>
-        <span v-else class="inline-block w-40 h-4 bg-gray-100 rounded animate-pulse" />
-      </p>
+    <div class="page-header fade-in" :class="{ ready: mounted }">
+      <div>
+        <h1 class="page-title">Questões</h1>
+        <p class="page-sub">
+          <span v-if="!loading">{{ questoesFiltradas.length }} questão{{ questoesFiltradas.length!==1?'ões':'' }}</span>
+          <span v-else class="skel-line" />
+        </p>
+      </div>
     </div>
 
     <!-- Filtros -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-4 space-y-3 animate-fade-up" style="animation-delay:40ms">
-      <!-- Busca -->
-      <div class="relative">
-        <Icon name="lucide:search" class="w-4 h-4 text-gray-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
-        <input v-model="busca"
-          class="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all"
-          placeholder="Buscar no enunciado..." />
-        <button v-if="busca" class="absolute right-3 top-1/2 -translate-y-1/2" @click="busca = ''">
-          <Icon name="lucide:x" class="w-3.5 h-3.5 text-gray-300 hover:text-gray-500" />
+    <div class="filter-card fade-in" :class="{ ready: mounted }" style="--d:.05s">
+      <div class="search-wrap">
+        <Icon name="lucide:search" class="search-icon" />
+        <input v-model="busca" placeholder="Buscar no enunciado..." class="search-input" />
+        <button v-if="busca" class="search-clear" @click="busca = ''">
+          <Icon name="lucide:x" class="w-3.5 h-3.5" />
         </button>
       </div>
-
-      <!-- Linha de filtros -->
-      <div class="flex flex-wrap gap-2">
-        <select v-model="filtroExam"
-          class="text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-600">
+      <div class="filter-row">
+        <select v-model="filtroExam" class="filter-select">
           <option value="">Todos os simulados</option>
           <option v-for="e in exams" :key="e.id" :value="e.id">{{ e.title }}</option>
         </select>
-
-        <select v-model="filtroDisc"
-          class="text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-600">
+        <select v-model="filtroDisc" class="filter-select">
           <option value="">Todas as disciplinas</option>
           <option v-for="d in disciplines" :key="d.id" :value="d.id">{{ d.name }}</option>
         </select>
-
-        <select v-model="filtroState"
-          class="text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-600">
+        <select v-model="filtroState" class="filter-select">
           <option value="">Todos os estados</option>
           <option value="submitted">Enviada</option>
           <option value="approved">Aprovada</option>
           <option value="draft">Rascunho</option>
           <option value="rejected">Rejeitada</option>
         </select>
-
-        <select v-model="filtroGabarito"
-          class="text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-600">
-          <option value="">Com e sem gabarito</option>
-          <option value="com">Com gabarito</option>
-          <option value="sem">Sem gabarito</option>
-        </select>
-
-        <!-- Limpar filtros -->
-        <button v-if="filtroAtivo"
-          class="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 border border-gray-200 transition-all"
-          @click="limparFiltros">
-          <Icon name="lucide:x" class="w-3 h-3" />
-          Limpar
+        <button v-if="filtroAtivo" class="clear-btn" @click="limparFiltros">
+          <Icon name="lucide:x" class="w-3.5 h-3.5" /> Limpar
         </button>
       </div>
     </div>
 
     <!-- Skeleton -->
-    <div v-if="loading" class="space-y-3">
-      <div v-for="i in 4" :key="i"
-        class="bg-white rounded-2xl border border-gray-100 animate-pulse"
-        :style="`height:160px; animation-delay:${i*50}ms`" />
+    <div v-if="loading" class="q-list fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <div v-for="i in 5" :key="i" class="skel-q" :style="`--i:${i}`" />
     </div>
 
     <!-- Empty -->
-    <div v-else-if="!questoesFiltradas.length"
-      class="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-100 animate-fade-in">
-      <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-        <Icon name="lucide:file-x" class="w-6 h-6 text-gray-200" />
-      </div>
-      <p class="text-sm font-bold text-gray-400">
-        {{ filtroAtivo ? 'Nenhuma questão com esses filtros' : 'Nenhuma questão enviada ainda' }}
-      </p>
-      <button v-if="filtroAtivo" class="text-xs font-bold text-blue-500 hover:text-blue-600 mt-1"
-        @click="limparFiltros">Limpar filtros</button>
+    <div v-else-if="!questoesFiltradas.length" class="empty-state fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <Icon name="lucide:file-question" class="w-10 h-10 text-gray-200" />
+      <p>{{ filtroAtivo ? 'Nenhuma questão encontrada' : 'Nenhuma questão cadastrada ainda' }}</p>
     </div>
 
     <!-- Lista -->
-    <div v-else class="space-y-3">
-      <div v-for="(q, idx) in questoesFiltradas" :key="q.id"
-        class="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-gray-200 hover:shadow-sm transition-all duration-200 animate-fade-up"
-        :style="`animation-delay:${Math.min(idx, 8) * 40}ms`">
-
-        <!-- Meta linha -->
-        <div class="flex items-center gap-2 px-5 py-3 border-b border-gray-50 flex-wrap">
-          <!-- Número -->
-          <span class="text-[11px] font-black text-gray-300 tabular-nums w-6">#{{ q.id }}</span>
-
-          <!-- Simulado -->
-          <NuxtLink :to="`/dashboard/coordenador/simulados/${q.exam_id}`"
-            class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors flex items-center gap-1">
-            <Icon name="lucide:file-text" class="w-3 h-3" />
-            {{ examTitle(q.exam_id) }}
-          </NuxtLink>
-
-          <!-- Disciplina -->
-          <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
-            {{ disciplineName(q.discipline_id) }}
-          </span>
-
-          <!-- Turma -->
-          <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-violet-50 text-violet-700">
-            {{ className(q.class_id) }}
-          </span>
-
-          <!-- Estado -->
-          <span class="text-[11px] font-bold px-2.5 py-1 rounded-full" :class="stateBadge(q.state)">
-            {{ stateLabel(q.state) }}
-          </span>
-
-          <!-- Gabarito -->
-          <span v-if="q.correct_label"
-            class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 flex items-center gap-1">
-            <Icon name="lucide:check" class="w-3 h-3" />
-            Gabarito: {{ q.correct_label }}
-          </span>
-          <span v-else class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600">
-            Sem gabarito
-          </span>
-
-          <!-- Autor -->
-          <span class="text-[11px] text-gray-400 ml-auto">
-            {{ authorName(q.author_user_id) }}
+    <div v-else class="q-list fade-in" :class="{ ready: mounted }" style="--d:.08s">
+      <div v-for="(q, idx) in questoesFiltradas" :key="q.id" class="q-card" :style="`--i:${idx}`">
+        <div class="q-header">
+          <span class="q-exam">{{ examName(q.exam_id) }}</span>
+          <span class="q-disc">{{ disciplineName(q.discipline_id) }}</span>
+          <span class="state-badge" :class="stateBadge(q.state)">{{ stateLabel(q.state) }}</span>
+          <span v-if="q.has_images" class="img-tag">
+            <Icon name="lucide:image" class="w-2.5 h-2.5" /> imagem
           </span>
         </div>
-
-        <!-- Enunciado -->
-        <div class="px-5 py-4">
-          <p class="text-sm text-gray-800 font-medium leading-relaxed mb-4">
-            <span v-if="busca" v-html="highlight(q.stem, busca)" />
-            <span v-else>{{ q.stem }}</span>
-          </p>
-
-          <!-- Alternativas -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-            <div v-for="opt in q.options" :key="opt.label"
-              class="flex items-start gap-2 px-3 py-2 rounded-xl text-xs border transition-colors"
-              :class="q.correct_label === opt.label
-                ? 'bg-emerald-50 border-emerald-100'
-                : 'bg-gray-50 border-gray-100'">
-              <span class="font-black flex-shrink-0 mt-0.5"
-                :class="q.correct_label === opt.label ? 'text-emerald-600' : 'text-gray-400'">
-                {{ opt.label }})
-              </span>
-              <span :class="q.correct_label === opt.label ? 'text-emerald-700' : 'text-gray-600'">
-                {{ opt.text }}
-              </span>
-            </div>
+        <div class="q-stem question-content" v-html="q.stem.length > 200 ? q.stem.slice(0,200)+'…' : q.stem" />
+        <div v-if="q.options?.length" class="q-opts">
+          <div v-for="opt in q.options.slice(0,2)" :key="opt.label" class="q-opt"
+            :class="q.correct_label===opt.label?'q-opt--correct':''">
+            <span class="opt-letter">{{ opt.label }}</span>
+            <span class="opt-text">{{ opt.text.length > 80 ? opt.text.slice(0,80)+'…' : opt.text }}</span>
+            <Icon v-if="q.correct_label===opt.label" name="lucide:check" class="w-3 h-3 text-emerald-500 ml-auto" />
           </div>
+          <p v-if="q.options.length > 2" class="q-more">+ {{ q.options.length - 2 }} alternativa{{ q.options.length-2!==1?'s':'' }}</p>
         </div>
-
       </div>
     </div>
 
@@ -166,109 +82,103 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard' })
-
 const { get } = useApi()
+const mounted = ref(false)
 
-const exams       = ref<any[]>([])
-const disciplines = ref<any[]>([])
-const allClasses  = ref<any[]>([])
-const teachers    = ref<any[]>([])
 const allQuestions = ref<any[]>([])
-const loading     = ref(true)
+const exams        = ref<any[]>([])
+const disciplines  = ref<any[]>([])
+const loading      = ref(true)
+const busca        = ref('')
+const filtroExam   = ref<number|''>('')
+const filtroDisc   = ref<number|''>('')
+const filtroState  = ref('')
 
-// Filtros
-const busca         = ref('')
-const filtroExam    = ref<number | ''>('')
-const filtroDisc    = ref<number | ''>('')
-const filtroState   = ref('')
-const filtroGabarito = ref('')
-
-const filtroAtivo = computed(() =>
-  !!busca.value || filtroExam.value !== '' || filtroDisc.value !== '' || filtroState.value || filtroGabarito.value
-)
-
-function limparFiltros() {
-  busca.value = ''
-  filtroExam.value = ''
-  filtroDisc.value = ''
-  filtroState.value = ''
-  filtroGabarito.value = ''
-}
+const filtroAtivo = computed(() => !!(busca.value||filtroExam.value||filtroDisc.value||filtroState.value))
 
 const questoesFiltradas = computed(() => {
-  let lista = allQuestions.value
-
-  if (filtroExam.value !== '')    lista = lista.filter(q => q.exam_id === filtroExam.value)
-  if (filtroDisc.value !== '')    lista = lista.filter(q => q.discipline_id === filtroDisc.value)
-  if (filtroState.value)          lista = lista.filter(q => q.state === filtroState.value)
-  if (filtroGabarito.value === 'com') lista = lista.filter(q => !!q.correct_label)
-  if (filtroGabarito.value === 'sem') lista = lista.filter(q => !q.correct_label)
+  let list = allQuestions.value
+  if (filtroExam.value)  list = list.filter(q => q.exam_id === filtroExam.value)
+  if (filtroDisc.value)  list = list.filter(q => q.discipline_id === filtroDisc.value)
+  if (filtroState.value) list = list.filter(q => q.state === filtroState.value)
   if (busca.value) {
     const q = busca.value.toLowerCase()
-    lista = lista.filter(r => r.stem.toLowerCase().includes(q))
+    list = list.filter(q2 => q2.stem.toLowerCase().includes(q))
   }
-
-  return lista
+  return list
 })
 
-// Lookup helpers
-function examTitle(id: number)      { return exams.value.find(e => e.id === id)?.title ?? `Simulado #${id}` }
-function disciplineName(id: number) { return disciplines.value.find(d => d.id === id)?.name ?? `Disc. #${id}` }
-function className(id: number)      { return allClasses.value.find(c => c.id === id)?.name ?? `Turma #${id}` }
-function authorName(id: number)     { return teachers.value.find(t => t.id === id)?.name ?? `Prof. #${id}` }
-
-function stateLabel(s: string) {
-  return ({ submitted: 'Enviada', approved: 'Aprovada', draft: 'Rascunho', rejected: 'Rejeitada' } as any)[s] ?? s
-}
-function stateBadge(s: string) {
-  return ({
-    submitted: 'bg-amber-50 text-amber-700',
-    approved:  'bg-emerald-50 text-emerald-700',
-    draft:     'bg-gray-50 text-gray-500',
-    rejected:  'bg-red-50 text-red-600',
-  } as any)[s] ?? 'bg-gray-50 text-gray-500'
-}
-
-function highlight(text: string, query: string) {
-  if (!query) return text
-  const esc = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return text.replace(new RegExp(`(${esc})`, 'gi'),
-    '<mark class="bg-yellow-100 text-yellow-800 rounded px-0.5">$1</mark>')
-}
+function examName(id: number) { return exams.value.find(e=>e.id===id)?.title ?? `Simulado #${id}` }
+function disciplineName(id: number) { return disciplines.value.find(d=>d.id===id)?.name ?? `#${id}` }
+function stateLabel(s: string) { return ({draft:'Rascunho',submitted:'Enviada',approved:'Aprovada',rejected:'Rejeitada'}as any)[s]??s }
+function stateBadge(s: string) { return ({draft:'badge-gray',submitted:'badge-blue',approved:'badge-green',rejected:'badge-red'}as any)[s]??'badge-gray' }
+function limparFiltros() { busca.value=''; filtroExam.value=''; filtroDisc.value=''; filtroState.value='' }
 
 onMounted(async () => {
-  const [examsRes, discRes, classesRes, teachersRes] = await Promise.allSettled([
-    get<any[]>('/exams/'),
-    get<any[]>('/disciplines/'),
-    get<any[]>('/school/classes'),
-    get<any[]>('/school/teachers'),
-  ])
+  await nextTick(); setTimeout(()=>{mounted.value=true},30)
+  const [eRes,dRes] = await Promise.allSettled([get<any[]>('/exams/'), get<any[]>('/disciplines/')])
+  if (eRes.status==='fulfilled') exams.value       = eRes.value
+  if (dRes.status==='fulfilled') disciplines.value = dRes.value
 
-  if (examsRes.status === 'fulfilled')    exams.value       = examsRes.value
-  if (discRes.status === 'fulfilled')     disciplines.value = discRes.value
-  if (classesRes.status === 'fulfilled')  allClasses.value  = classesRes.value
-  if (teachersRes.status === 'fulfilled') teachers.value    = teachersRes.value
-
-  // Busca questões de todos os simulados em paralelo
-  if (examsRes.status === 'fulfilled') {
-    const results = await Promise.allSettled(
-      examsRes.value.map((e: any) => get<any[]>(`/exams/${e.id}/questions`))
-    )
-    const todas: any[] = []
-    for (const r of results) {
-      if (r.status === 'fulfilled') todas.push(...r.value)
-    }
-    // Ordena: mais recentes primeiro (id desc)
-    allQuestions.value = todas.sort((a, b) => b.id - a.id)
-  }
-
+  const qResults = await Promise.allSettled(exams.value.map(e => get<any[]>(`/exams/${e.id}/questions`)))
+  const all: any[] = []
+  exams.value.forEach((e, i) => {
+    const r = qResults[i]
+    if (r.status === 'fulfilled') all.push(...r.value.map((q:any) => ({...q, exam_id:e.id})))
+  })
+  allQuestions.value = all
   loading.value = false
 })
 </script>
 
 <style scoped>
-@keyframes fade-in { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
-@keyframes fade-up { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-.animate-fade-in { animation: fade-in 0.3s ease both }
-.animate-fade-up { animation: fade-up 0.38s ease both }
+.page { display:flex; flex-direction:column; gap:1.25rem; padding-bottom:2rem; }
+.fade-in { opacity:0; transform:translateY(10px); transition:opacity .35s ease var(--d,.0s), transform .35s ease var(--d,.0s); }
+.fade-in.ready { opacity:1; transform:translateY(0); }
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.page-title  { font-size:1.35rem; font-weight:800; color:#111827; margin:0 0 .2rem; }
+.page-sub    { font-size:.8rem; color:#9ca3af; margin:0; }
+.skel-line   { display:inline-block; width:10rem; height:.875rem; background:#f3f4f6; border-radius:.375rem; animation:shimmer 1.5s ease-in-out infinite; }
+
+.filter-card { background:white; border:1px solid #f3f4f6; border-radius:1rem; padding:1rem; display:flex; flex-direction:column; gap:.75rem; }
+.search-wrap { position:relative; }
+.search-icon { position:absolute; left:.875rem; top:50%; transform:translateY(-50%); width:.875rem; height:.875rem; color:#d1d5db; }
+.search-input { width:100%; padding:.55rem .875rem .55rem 2.5rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.8rem; background:white; outline:none; transition:border-color .13s; }
+.search-input:focus { border-color:#93c5fd; }
+.search-clear { position:absolute; right:.875rem; top:50%; transform:translateY(-50%); color:#d1d5db; }
+.search-clear:hover { color:#6b7280; }
+.filter-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+.filter-select { padding:.4rem .625rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.75rem; color:#374151; background:white; outline:none; }
+.clear-btn { display:inline-flex; align-items:center; gap:.3rem; padding:.4rem .75rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.75rem; font-weight:600; color:#6b7280; background:white; cursor:pointer; transition:all .13s; }
+.clear-btn:hover { background:#f9fafb; color:#374151; }
+
+.q-list { display:flex; flex-direction:column; gap:.625rem; }
+.skel-q { height:9rem; background:white; border:1px solid #f3f4f6; border-radius:1rem; animation:shimmer 1.5s ease-in-out infinite; animation-delay:calc(var(--i,0)*60ms); }
+.empty-state { display:flex; flex-direction:column; align-items:center; gap:.5rem; padding:4rem 1rem; background:white; border:2px dashed #f3f4f6; border-radius:1rem; text-align:center; }
+.empty-state p { font-size:.8rem; color:#9ca3af; margin:0; }
+
+.q-card { background:white; border:1px solid #f3f4f6; border-radius:1rem; padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.625rem; animation:card-in .35s ease both; animation-delay:calc(var(--i,0)*40ms); transition:border-color .15s; }
+.q-card:hover { border-color:#e5e7eb; }
+@keyframes card-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+.q-header { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.q-exam  { font-size:.68rem; font-weight:600; color:#6b7280; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:12rem; }
+.q-disc  { font-size:.68rem; color:#9ca3af; flex-shrink:0; }
+.img-tag { display:inline-flex; align-items:center; gap:.25rem; font-size:.62rem; font-weight:700; padding:.1rem .4rem; border-radius:9999px; background:#ede9fe; color:#5b21b6; }
+
+.state-badge { font-size:.62rem; font-weight:700; padding:.15rem .45rem; border-radius:9999px; }
+.badge-gray  { background:#f3f4f6; color:#6b7280; }
+.badge-blue  { background:#dbeafe; color:#1e40af; }
+.badge-green { background:#d1fae5; color:#065f46; }
+.badge-red   { background:#fee2e2; color:#991b1b; }
+
+.q-stem { font-size:.8rem; color:#374151; line-height:1.6; }
+.q-opts { display:flex; flex-direction:column; gap:.3rem; }
+.q-opt  { display:flex; align-items:flex-start; gap:.5rem; padding:.3rem .625rem; border-radius:.5rem; background:#f9fafb; font-size:.75rem; color:#6b7280; }
+.q-opt--correct { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.opt-letter { font-weight:700; flex-shrink:0; width:.875rem; }
+.opt-text   { flex:1; overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
+.q-more { font-size:.68rem; color:#9ca3af; text-align:right; }
+
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.45} }
 </style>

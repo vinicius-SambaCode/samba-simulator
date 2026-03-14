@@ -1,579 +1,281 @@
-<!-- pages/dashboard/coordenador/simulados/[id].vue -->
 <template>
-  <div class="space-y-6">
+  <div class="page">
 
-    <!-- ── BREADCRUMB ── -->
-    <!-- OVERLAY: Gerando PDFs -->
-  <Transition name="pop">
-    <div v-if="batchOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 flex flex-col items-center gap-5">
-
-        <!-- Arco animado com cor dinâmica -->
-        <div class="relative w-20 h-20">
-          <svg class="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="34" fill="none" stroke="#e5e7eb" stroke-width="6"/>
-            <circle cx="40" cy="40" r="34" fill="none" :stroke="stepColor.color" stroke-width="6"
-              stroke-linecap="round"
-              :stroke-dasharray="`${(batchElapsed % 20) * 10.7} 214`"
-              style="transition: stroke-dasharray 1s linear, stroke 0.6s ease"/>
-          </svg>
-          <div class="absolute inset-0 flex items-center justify-center rounded-full transition-colors duration-500"
-            :style="`background-color: ${stepColor.bgColor}40`">
-            <Icon :name="currentStep?.icon ?? 'lucide:book-open'" class="w-8 h-8 transition-colors duration-500"
-              :class="stepColor.iconColor" />
+    <!-- Overlay geração PDF -->
+    <Transition name="pop">
+      <div v-if="batchOverlay" class="overlay">
+        <div class="overlay-card">
+          <div class="overlay-spinner">
+            <svg class="spin-svg" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#3b82f6" stroke-width="6"
+                stroke-linecap="round"
+                :stroke-dasharray="`${(batchElapsed % 20) * 10.7} 214`"
+                style="transform:rotate(-90deg);transform-origin:center;transition:stroke-dasharray 1s linear"/>
+            </svg>
+            <Icon name="lucide:book-open" class="overlay-icon" />
           </div>
-        </div>
-
-        <!-- Etapa atual -->
-        <div class="text-center">
-          <p class="text-base font-bold text-gray-900 transition-all duration-300">
-            {{ currentStep?.label ?? 'Processando…' }}
-          </p>
-          <p class="text-sm text-gray-400 mt-0.5">{{ currentStep?.sublabel ?? '' }}</p>
-        </div>
-
-        <!-- Timer -->
-        <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-5 py-3">
-          <Icon name="lucide:timer" class="w-4 h-4 text-gray-400" />
-          <span class="text-2xl font-mono font-bold text-gray-700">{{ fmtTime(batchElapsed) }}</span>
-        </div>
-
-        <!-- Progresso de etapas -->
-        <div v-if="batchSteps.length > 1" class="w-full space-y-1.5">
-          <div v-for="(step, i) in batchSteps" :key="i"
-            class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-400"
-            :class="i === batchStepIdx
-              ? 'bg-gray-50 border border-gray-100'
-              : step.done ? 'opacity-50' : 'opacity-30'">
-            <div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-colors duration-400"
-              :style="step.done || i === batchStepIdx ? `background-color:${STEP_COLORS[i % STEP_COLORS.length].color}20` : 'background-color:#f3f4f6'">
-              <Icon v-if="step.done" name="lucide:check" class="w-3 h-3 text-emerald-500" />
-              <div v-else-if="i === batchStepIdx"
-                class="w-2 h-2 rounded-full animate-pulse"
-                :style="`background-color:${STEP_COLORS[i % STEP_COLORS.length].color}`"/>
-              <div v-else class="w-2 h-2 rounded-full bg-gray-300"/>
+          <p class="overlay-label">{{ batchSteps[batchStepIdx]?.label ?? 'Processando…' }}</p>
+          <p class="overlay-sub">{{ batchSteps[batchStepIdx]?.sublabel ?? '' }}</p>
+          <div class="overlay-timer">
+            <Icon name="lucide:timer" class="w-4 h-4 text-gray-400" />
+            <span>{{ fmtTime(batchElapsed) }}</span>
+          </div>
+          <div v-if="batchSteps.length > 1" class="overlay-steps">
+            <div v-for="(step, i) in batchSteps" :key="i"
+              class="overlay-step" :class="i === batchStepIdx ? 'step-active' : step.done ? 'step-done' : 'step-pending'">
+              <div class="step-dot">
+                <Icon v-if="step.done" name="lucide:check" class="w-3 h-3 text-emerald-500" />
+                <div v-else-if="i === batchStepIdx" class="dot-pulse" />
+                <div v-else class="dot-empty" />
+              </div>
+              <span>{{ step.label }}</span>
             </div>
-            <span class="text-xs font-medium text-gray-600 truncate">{{ step.label }}</span>
           </div>
+          <p class="overlay-hint">Não feche esta janela…</p>
         </div>
-
-        <p class="text-xs text-gray-400">Aguarde, não feche esta janela…</p>
       </div>
-    </div>
-  </Transition>
+    </Transition>
 
-  <div class="animate-fade-in">
-      <NuxtLink to="/dashboard/coordenador/simulados"
-        class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
-        <Icon name="lucide:arrow-left" class="w-3.5 h-3.5" />
-        Todos os simulados
+    <!-- Breadcrumb -->
+    <div :class="{ ready: mounted }" class="fade-in">
+      <NuxtLink to="/dashboard/coordenador/simulados" class="back-link">
+        <Icon name="lucide:arrow-left" class="w-3.5 h-3.5" /> Todos os simulados
       </NuxtLink>
     </div>
 
-    <!-- ── HEADER CARD ── -->
-    <div class="animate-fade-in" style="animation-delay:30ms">
-      <!-- Skeleton -->
-      <div v-if="loading" class="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse" />
-
-      <div v-else class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
-        <div class="flex items-start justify-between gap-4 flex-wrap">
-          <!-- Ícone + título + meta -->
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-              :class="statusBg(exam?.status)">
-              <Icon :name="statusIcon(exam?.status)" class="w-5 h-5" :class="statusIconColor(exam?.status)" />
-            </div>
-            <div>
-              <div class="flex items-center gap-2.5 mb-1 flex-wrap">
-                <h2 class="text-xl font-black text-gray-900 tracking-tight leading-tight">{{ exam?.title }}</h2>
-                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5"
-                  :class="statusBadge(exam?.status)">
-                  <span class="w-1.5 h-1.5 rounded-full" :class="statusDot(exam?.status)" />
-                  {{ statusLabel(exam?.status) }}
-                </span>
-              </div>
-              <p class="text-xs text-gray-400 flex items-center gap-1.5">
-                <span>{{ exam?.area || 'Sem área definida' }}</span>
-                <span class="text-gray-200">·</span>
-                <span>{{ exam?.options_count }} alternativas</span>
-                <span class="text-gray-200">·</span>
-                <span>{{ answerSourceLabel(exam?.answer_source) }}</span>
-              </p>
-            </div>
+    <!-- Header card -->
+    <div :class="{ ready: mounted }" class="fade-in" style="--d:.04s">
+      <div v-if="loading" class="skel-header" />
+      <div v-else class="header-card">
+        <div class="header-main">
+          <div class="header-icon" :class="statusBg(exam?.status)">
+            <Icon :name="statusIcon(exam?.status)" class="w-5 h-5" :class="statusIconColor(exam?.status)" />
           </div>
-
-          <!-- Ações -->
-          <div class="flex items-center gap-2 flex-wrap">
-            <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/editar`"
-              class="flex items-center gap-1.5 px-3 py-2 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-600 text-xs font-bold rounded-xl transition-all">
-              <Icon name="lucide:settings-2" class="w-3.5 h-3.5" />
-              <span class="hidden sm:inline">Configurar</span>
-            </NuxtLink>
-            <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/gabarito`"
-              class="flex items-center gap-1.5 px-3 py-2 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-600 text-xs font-bold rounded-xl transition-all">
-              <Icon name="lucide:check-square" class="w-3.5 h-3.5" />
-              <span class="hidden sm:inline">Gabarito</span>
-            </NuxtLink>
-            <button v-if="exam?.status === 'collecting'"
-              class="flex items-center gap-1.5 px-3 py-2 bg-gray-900 hover:bg-gray-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95"
-              @click="showLockModal = true">
-              <Icon name="lucide:lock" class="w-3.5 h-3.5" />
-              <span class="hidden sm:inline">Travar simulado</span>
-            </button>
-            <button v-if="exam?.status === 'locked'"
-              class="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95"
-              @click="showGenerateModal = true">
-              <Icon name="lucide:book-open" class="w-3.5 h-3.5" />
-              <span class="hidden sm:inline">Gerar cadernos</span>
-            </button>
-            <span v-if="exam?.status === 'generated' || exam?.status === 'published'"
-              class="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
-              <Icon name="lucide:check-circle-2" class="w-3.5 h-3.5" />
-              <span class="hidden sm:inline">{{ exam?.status === 'published' ? 'Publicado' : 'Cadernos gerados' }}</span>
-            </span>
+          <div class="header-info">
+            <div class="header-title-row">
+              <h1 class="header-title">{{ exam?.title }}</h1>
+              <span class="status-badge" :class="statusBadge(exam?.status)">
+                <span class="status-dot" :class="statusDotColor(exam?.status)" />
+                {{ statusLabel(exam?.status) }}
+              </span>
+            </div>
+            <p class="header-meta">
+              {{ exam?.area || 'Sem área' }} · {{ exam?.options_count }} alternativas · {{ answerSourceLabel(exam?.answer_source) }}
+            </p>
           </div>
         </div>
-
-        <!-- Stat strip dentro do header -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-px mt-5 pt-4 border-t border-gray-50">
-          <div v-for="s in statCards" :key="s.label" class="flex items-center gap-2.5 px-1">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="s.iconBg">
+        <div class="header-actions">
+          <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/editar`" class="btn-secondary">
+            <Icon name="lucide:settings-2" class="w-3.5 h-3.5" /> <span class="hidden sm:inline">Configurar</span>
+          </NuxtLink>
+          <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/gabarito`" class="btn-secondary">
+            <Icon name="lucide:check-square" class="w-3.5 h-3.5" /> <span class="hidden sm:inline">Gabarito</span>
+          </NuxtLink>
+          <button v-if="exam?.status === 'collecting' || exam?.status === 'review'"
+            class="btn-primary" @click="showLockModal = true">
+            <Icon name="lucide:lock" class="w-3.5 h-3.5" /> <span class="hidden sm:inline">Travar</span>
+          </button>
+          <button v-if="exam?.status === 'locked'"
+            class="btn-indigo" @click="showGenerateModal = true">
+            <Icon name="lucide:book-open" class="w-3.5 h-3.5" /> <span class="hidden sm:inline">Gerar cadernos</span>
+          </button>
+          <span v-if="exam?.status === 'generated' || exam?.status === 'published'" class="btn-done">
+            <Icon name="lucide:check-circle-2" class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">{{ exam?.status === 'published' ? 'Publicado' : 'Gerado' }}</span>
+          </span>
+        </div>
+        <!-- Stats strip -->
+        <div class="stats-strip">
+          <div v-for="s in statCards" :key="s.label" class="stat-item">
+            <div class="stat-icon-sm" :class="s.iconBg">
               <Icon :name="s.icon" class="w-3.5 h-3.5" :class="s.iconColor" />
             </div>
             <div>
-              <p class="text-base font-black text-gray-900 tabular-nums leading-none">
-                <span v-if="loading" class="inline-block w-5 h-4 bg-gray-100 rounded animate-pulse" />
-                <span v-else>{{ s.value }}</span>
-              </p>
-              <p class="text-[10px] text-gray-400 font-medium mt-0.5 leading-tight">{{ s.label }}</p>
+              <p class="stat-value">{{ s.value }}</p>
+              <p class="stat-label">{{ s.label }}</p>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ── GRID PRINCIPAL: progresso (esq) + turmas (dir) ── -->
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 animate-fade-up" style="animation-delay:80ms">
+    <!-- Grid progresso + turmas -->
+    <div class="main-grid fade-in" :class="{ ready: mounted }" style="--d:.08s">
 
       <!-- Progresso disciplinas -->
-      <div class="lg:col-span-3 bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-          <div class="flex items-center gap-2">
-            <Icon name="lucide:bar-chart-2" class="w-4 h-4 text-gray-400" />
-            <h3 class="text-sm font-bold text-gray-900">Progresso por disciplina</h3>
-          </div>
-          <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/editar`"
-            class="text-[11px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 transition-colors">
-            <Icon name="lucide:settings-2" class="w-3 h-3" />
-            Configurar cotas
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><Icon name="lucide:bar-chart-2" class="w-4 h-4 text-gray-400" /> Progresso por disciplina</div>
+          <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/editar`" class="link-sm">
+            <Icon name="lucide:settings-2" class="w-3 h-3" /> Cotas
           </NuxtLink>
         </div>
-        <div v-if="loadingProgress" class="p-4 space-y-3">
-          <div v-for="i in 3" :key="i" class="h-14 bg-gray-50 rounded-xl animate-pulse" />
+        <div v-if="loadingProgress" class="card-loading">
+          <div v-for="i in 3" :key="i" class="skel-row" :style="`--i:${i}`" />
         </div>
-        <div v-else-if="!progress?.disciplines?.length" class="flex flex-col items-center justify-center py-12">
-          <Icon name="lucide:inbox" class="w-8 h-8 text-gray-200 mb-2" />
-          <p class="text-xs text-gray-400 font-medium">Nenhuma cota definida</p>
-          <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/editar`"
-            class="text-xs font-bold text-blue-500 hover:text-blue-600 mt-1">Configurar agora →</NuxtLink>
+        <div v-else-if="!progress?.disciplines?.length" class="card-empty">
+          <Icon name="lucide:inbox" class="w-7 h-7 text-gray-200" />
+          <p>Nenhuma cota definida</p>
+          <NuxtLink :to="`/dashboard/coordenador/simulados/${examId}/editar`" class="link-sm">Configurar →</NuxtLink>
         </div>
-        <div v-else class="divide-y divide-gray-50">
-          <div v-for="disc in progress.disciplines" :key="disc.discipline_id" class="px-5 py-4">
-            <div class="flex items-center justify-between mb-2">
-              <p class="text-sm font-bold text-gray-800">{{ disciplineName(disc.discipline_id) }}</p>
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-black text-gray-900 tabular-nums">
-                  {{ disc.submitted }}/{{ disc.quota }}
-                </span>
-                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                  :class="disc.remaining === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'">
-                  {{ disc.remaining === 0 ? 'Completo' : `${disc.remaining} restantes` }}
+        <div v-else class="disc-list">
+          <div v-for="disc in progress.disciplines" :key="disc.discipline_id" class="disc-item">
+            <div class="disc-top">
+              <span class="disc-name">{{ disciplineName(disc.discipline_id) }}</span>
+              <div class="disc-right">
+                <span class="disc-count">{{ disc.submitted }}/{{ disc.quota }}</span>
+                <span class="disc-tag" :class="disc.remaining === 0 ? 'tag-green' : 'tag-amber'">
+                  {{ disc.remaining === 0 ? 'Completo' : `${disc.remaining} restante${disc.remaining !== 1 ? 's' : ''}` }}
                 </span>
               </div>
             </div>
-            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div class="h-full rounded-full transition-all duration-700"
-                :class="disc.remaining === 0 ? 'bg-emerald-400' : 'bg-blue-400'"
-                :style="`width:${Math.min(100, disc.quota > 0 ? (disc.submitted / disc.quota) * 100 : 0)}%`" />
+            <div class="prog-bar">
+              <div class="prog-fill" :class="disc.remaining === 0 ? 'bg-emerald-400' : 'bg-blue-400'"
+                :style="`width:${disc.quota > 0 ? Math.min(100, disc.submitted/disc.quota*100) : 0}%`" />
             </div>
           </div>
         </div>
       </div>
 
       <!-- Turmas -->
-      <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-          <div class="flex items-center gap-2">
-            <Icon name="lucide:users" class="w-4 h-4 text-gray-400" />
-            <h3 class="text-sm font-bold text-gray-900">Turmas</h3>
-            <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-500">
-              {{ examClasses.length }}
-            </span>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <Icon name="lucide:users" class="w-4 h-4 text-gray-400" /> Turmas
+            <span class="count-badge">{{ examClasses.length }}</span>
           </div>
-          <button v-if="exam?.status === 'collecting'"
-            class="text-[11px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 transition-colors"
-            @click="showAssignModal = true">
-            <Icon name="lucide:plus" class="w-3 h-3" />
-            Vincular
+          <button v-if="exam?.status === 'collecting'" class="link-sm" @click="showAssignModal = true">
+            <Icon name="lucide:plus" class="w-3 h-3" /> Vincular
           </button>
         </div>
-        <div v-if="loadingClasses" class="p-4 space-y-2">
-          <div v-for="i in 3" :key="i" class="h-10 bg-gray-50 rounded-xl animate-pulse" />
+        <div v-if="loadingClasses" class="card-loading">
+          <div v-for="i in 3" :key="i" class="skel-row" :style="`--i:${i}`" />
         </div>
-        <div v-else-if="!examClasses.length" class="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <Icon name="lucide:users" class="w-8 h-8 text-gray-200 mb-2" />
-          <p class="text-xs text-gray-400 font-medium">Nenhuma turma vinculada</p>
-          <button v-if="exam?.status === 'collecting'"
-            class="text-xs font-bold text-blue-500 hover:text-blue-600 mt-1"
-            @click="showAssignModal = true">Vincular turmas →</button>
+        <div v-else-if="!examClasses.length" class="card-empty">
+          <Icon name="lucide:users" class="w-7 h-7 text-gray-200" />
+          <p>Nenhuma turma vinculada</p>
+          <button v-if="exam?.status === 'collecting'" class="link-sm" @click="showAssignModal = true">Vincular turmas →</button>
         </div>
-        <div v-else class="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-          <div v-for="cls in examClasses" :key="cls.class_id"
-            class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors">
-            <div class="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-              <Icon name="lucide:users" class="w-3 h-3 text-blue-400" />
-            </div>
-            <p class="text-sm font-semibold text-gray-700 truncate">{{ cls.class_name }}</p>
-          </div>
-        </div>
+        <ul v-else class="class-list">
+          <li v-for="cls in examClasses" :key="cls.class_id" class="class-item">
+            <div class="class-icon"><Icon name="lucide:users" class="w-3.5 h-3.5 text-blue-400" /></div>
+            <span class="class-name">{{ cls.class_name }}</span>
+          </li>
+        </ul>
       </div>
     </div>
 
-    <!-- ── CADERNOS (só quando generated/published) ── -->
-    <Transition name="slide-up">
-      <div v-if="exam?.status === 'generated' || exam?.status === 'published'"
-        class="bg-white rounded-2xl border border-indigo-100 overflow-hidden animate-fade-up"
-        style="animation-delay:110ms">
-
-        <!-- Header da seção -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-indigo-50 bg-gradient-to-r from-indigo-50/60 to-transparent">
-          <div class="flex items-center gap-2">
-            <Icon name="lucide:book-open" class="w-4 h-4 text-indigo-500" />
-            <h3 class="text-sm font-bold text-gray-900">Cadernos de questões</h3>
-          </div>
-          <Transition name="slide-up">
-            <span v-if="bookletError"
-              class="flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl">
-              <Icon name="lucide:alert-circle" class="w-3 h-3" />
-              {{ bookletError }}
-            </span>
-          </Transition>
-        </div>
-
-        <div v-if="!examClasses.length" class="flex flex-col items-center py-10">
-          <Icon name="lucide:users" class="w-7 h-7 text-gray-200 mb-2" />
-          <p class="text-xs text-gray-400">Nenhuma turma vinculada</p>
-        </div>
-
-        <div v-else>
-          <!-- Seletor de turma + botões de lote na mesma barra -->
-          <div class="flex items-center justify-between gap-3 flex-wrap px-5 py-3 border-b border-gray-50 bg-gray-50/30">
-            <div class="flex gap-2 flex-wrap">
-              <button v-for="cls in examClasses" :key="cls.class_id"
-                class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all border"
-                :class="bookletClassId === cls.class_id
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'"
-                @click="selectBookletClass(cls.class_id)">
-                {{ cls.class_name }}
-              </button>
-            </div>
-            <!-- Botões lote (só aparecem quando turma selecionada e alunos carregados) -->
-            <div v-if="bookletClassId && students.length" class="flex gap-2">
-              <button
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border"
-                :class="batchLoading.booklets
-                  ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-wait'
-                  : 'bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50'"
-                :disabled="batchLoading.booklets"
-                @click="downloadBatch('booklets')">
-                <Icon :name="batchLoading.booklets ? 'lucide:loader-2' : 'lucide:download'"
-                  class="w-3 h-3" :class="batchLoading.booklets ? 'animate-spin' : ''" />
-                {{ batchLoading.booklets ? 'Gerando…' : 'Todos os cadernos' }}
-              </button>
-              <button
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border"
-                :class="batchLoading.answers
-                  ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-wait'
-                  : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'"
-                :disabled="batchLoading.answers"
-                @click="downloadBatch('answers')">
-                <Icon :name="batchLoading.answers ? 'lucide:loader-2' : 'lucide:download'"
-                  class="w-3 h-3" :class="batchLoading.answers ? 'animate-spin' : ''" />
-                {{ batchLoading.answers ? 'Gerando…' : 'Todas as folhas' }}
-              </button>
-            </div>
-          </div>
-
-          <div v-if="!bookletClassId" class="flex flex-col items-center py-10">
-            <Icon name="lucide:mouse-pointer-click" class="w-7 h-7 text-gray-200 mb-2" />
-            <p class="text-xs text-gray-400 font-medium">Selecione uma turma acima</p>
-          </div>
-          <div v-else-if="loadingBooklets" class="p-4 space-y-2">
-            <div v-for="i in 4" :key="i" class="h-12 bg-gray-50 rounded-xl animate-pulse" />
-          </div>
-          <div v-else-if="students.length">
-            <!-- Cabeçalho da lista -->
-            <div class="grid grid-cols-[1fr_auto] px-5 py-2 bg-gray-50/50 border-b border-gray-50">
-              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Aluno</span>
-              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Downloads</span>
-            </div>
-            <div class="divide-y divide-gray-50">
-              <div v-for="s in students" :key="s.id"
-                class="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50 transition-colors group">
-                <div class="flex items-center gap-3 min-w-0">
-                  <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                    :style="`background-color:${avatarColor(s.name)}18; color:${avatarColor(s.name)}`">
-                    {{ s.name.trim()[0] }}
-                  </div>
-                  <div class="min-w-0">
-                    <p class="text-sm font-semibold text-gray-800 truncate">{{ s.name }}</p>
-                    <p class="text-[11px] font-mono text-gray-400">{{ s.ra }}</p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-1.5 flex-shrink-0">
-                  <button
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all border"
-                    :class="pdfLoading[`b_${s.id}`]
-                      ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-wait'
-                      : 'bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50'"
-                    :disabled="!!pdfLoading[`b_${s.id}`]"
-                    :title="`Caderno — ${s.name}`"
-                    @click="downloadStudentBooklet(s.id, s.name, 'booklet')">
-                    <Icon :name="pdfLoading[`b_${s.id}`] ? 'lucide:loader-2' : 'lucide:book-open'"
-                      class="w-3 h-3" :class="pdfLoading[`b_${s.id}`] ? 'animate-spin' : ''" />
-                    Caderno
-                  </button>
-                  <button
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all border"
-                    :class="pdfLoading[`a_${s.id}`]
-                      ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-wait'
-                      : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'"
-                    :disabled="!!pdfLoading[`a_${s.id}`]"
-                    :title="`Folha de resposta — ${s.name}`"
-                    @click="downloadStudentBooklet(s.id, s.name, 'answer')">
-                    <Icon :name="pdfLoading[`a_${s.id}`] ? 'lucide:loader-2' : 'lucide:clipboard-list'"
-                      class="w-3 h-3" :class="pdfLoading[`a_${s.id}`] ? 'animate-spin' : ''" />
-                    Folha
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="flex flex-col items-center py-10">
-            <Icon name="lucide:users" class="w-7 h-7 text-gray-200 mb-2" />
-            <p class="text-xs text-gray-400">Nenhum aluno nesta turma</p>
-          </div>
-        </div>
+    <!-- Cadernos (generated+) -->
+    <div v-if="exam?.status === 'generated' || exam?.status === 'published'" class="card fade-in" :class="{ ready: mounted }" style="--d:.12s">
+      <div class="card-header">
+        <div class="card-title"><Icon name="lucide:download" class="w-4 h-4 text-gray-400" /> Download de cadernos</div>
       </div>
-    </Transition>
+      <div class="booklet-section">
+        <div class="booklet-tabs">
+          <button v-for="cls in examClasses" :key="cls.class_id"
+            class="booklet-tab" :class="bookletClassId === cls.class_id ? 'booklet-tab--on' : ''"
+            @click="selectBookletClass(cls.class_id)">
+            {{ cls.class_name }}
+          </button>
+        </div>
+        <div v-if="bookletClassId" class="booklet-actions">
+          <button class="btn-download" :disabled="batchLoading.booklets" @click="downloadBatch('booklets')">
+            <Icon name="lucide:book-open" class="w-4 h-4" />
+            {{ batchLoading.booklets ? 'Gerando...' : 'Baixar todos os cadernos' }}
+          </button>
+          <button class="btn-download" :disabled="batchLoading.answers" @click="downloadBatch('answers')">
+            <Icon name="lucide:file-check" class="w-4 h-4" />
+            {{ batchLoading.answers ? 'Gerando...' : 'Baixar cartões resposta' }}
+          </button>
+        </div>
+        <p v-if="bookletError" class="error-msg">{{ bookletError }}</p>
+        <div v-if="loadingBooklets" class="card-loading">
+          <div v-for="i in 3" :key="i" class="skel-row" :style="`--i:${i}`" />
+        </div>
+        <ul v-else-if="students.length" class="student-list">
+          <li v-for="st in students" :key="st.id" class="student-item">
+            <div class="student-info">
+              <span class="student-name">{{ st.name }}</span>
+              <span class="student-ra">RA {{ st.ra }}</span>
+            </div>
+            <div class="student-actions">
+              <button class="btn-dl-sm" :disabled="pdfLoading[`b_${st.id}`]" @click="downloadStudentBooklet(st.id, st.name, 'booklet')">
+                <Icon name="lucide:book-open" class="w-3.5 h-3.5" />
+              </button>
+              <button class="btn-dl-sm" :disabled="pdfLoading[`a_${st.id}`]" @click="downloadStudentBooklet(st.id, st.name, 'answer')">
+                <Icon name="lucide:file-check" class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
 
-    <!-- ── QUESTÕES ENVIADAS ── -->
-    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-fade-up"
-      style="animation-delay:140ms">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+    <!-- Questões (colapsável, fechado por padrão) -->
+    <div class="card fade-in" :class="{ ready: mounted }" style="--d:.16s">
+      <button class="card-header card-header--toggle" @click="questoesOpen = !questoesOpen">
+        <div class="card-title">
+          <Icon name="lucide:help-circle" class="w-4 h-4 text-gray-400" />
+          Questões
+          <span class="count-badge">{{ questions.length }}</span>
+        </div>
         <div class="flex items-center gap-2">
-          <Icon name="lucide:file-text" class="w-4 h-4 text-gray-400" />
-          <h3 class="text-sm font-bold text-gray-900">Questões enviadas</h3>
-          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-500">
-            {{ questions.length }}
-          </span>
+          <select v-if="questoesOpen" v-model="filterDisc" class="filter-select" @click.stop>
+            <option value="">Todas as disciplinas</option>
+            <option v-for="d in disciplines" :key="d.id" :value="d.id">{{ d.name }}</option>
+          </select>
+          <Icon :name="questoesOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'" class="w-4 h-4 text-gray-400 flex-shrink-0" />
         </div>
-        <select v-if="questions.length" v-model="filterDisc"
-          class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-600">
-          <option value="">Todas disciplinas</option>
-          <option v-for="d in disciplines" :key="d.id" :value="d.id">{{ d.name }}</option>
-        </select>
-      </div>
-      <div v-if="loadingQuestions" class="p-4 space-y-3">
-        <div v-for="i in 3" :key="i" class="h-24 bg-gray-50 rounded-xl animate-pulse" />
-      </div>
-      <div v-else-if="!questionsFiltradas.length" class="flex flex-col items-center justify-center py-14">
-        <Icon name="lucide:file-x" class="w-8 h-8 text-gray-200 mb-2" />
-        <p class="text-xs text-gray-400 font-medium">
-          {{ filterDisc ? 'Nenhuma questão nesta disciplina' : 'Nenhuma questão enviada ainda' }}
-        </p>
-      </div>
-      <div v-else class="divide-y divide-gray-50">
-        <div v-for="(q, idx) in questionsFiltradas" :key="q.id"
-          class="px-5 py-4 hover:bg-gray-50/40 transition-colors group">
-          <div class="flex items-start justify-between gap-3 mb-2.5">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-[11px] font-black text-gray-300 tabular-nums w-5">#{{ idx + 1 }}</span>
-              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                {{ disciplineName(q.discipline_id) }}
-              </span>
-              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                :class="q.state === 'approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'">
-                {{ q.state === 'approved' ? 'Aprovada' : 'Enviada' }}
-              </span>
-              <span v-if="q.correct_label"
-                class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                Gabarito: {{ q.correct_label }}
-              </span>
-              <span v-if="q.has_images || q.images?.length"
-                class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-100 inline-flex items-center gap-1">
-                <Icon name="lucide:image" class="w-2.5 h-2.5" />
-                com imagem
-              </span>
-            </div>
-            <button
-              class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px] font-bold text-gray-400 hover:text-gray-700 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 flex-shrink-0"
-              @click="openEditQuestion(q)">
-              <Icon name="lucide:pencil" class="w-3 h-3" />
-              Editar
-            </button>
-          </div>
-          <div class="text-sm text-gray-800 font-medium mb-3 leading-relaxed pl-7 question-content" v-html="renderStem(q.stem, q.images)" />
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-7">
-            <div v-for="opt in q.options" :key="opt.label"
-              class="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
-              :class="q.correct_label === opt.label
-                ? 'bg-emerald-50 border border-emerald-100'
-                : 'bg-gray-50 border border-gray-100'">
-              <span class="font-black flex-shrink-0"
-                :class="q.correct_label === opt.label ? 'text-emerald-600' : 'text-gray-400'">
-                {{ opt.label }})
-              </span>
-              <div class="question-content" :class="q.correct_label === opt.label ? 'text-emerald-700' : 'text-gray-600'"
-                v-html="renderOption(opt.text, opt.label, q.images)" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      </button>
 
-    <!-- ===== MODAL: GERAR CADERNOS ===== -->
-    <Transition name="modal">
-      <div v-if="showGenerateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showGenerateModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <Icon name="lucide:book-open" class="w-5 h-5 text-indigo-500" />
-            </div>
-            <div>
-              <h3 class="text-base font-black text-gray-900">Gerar cadernos</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Gera PDFs para todos os alunos</p>
-            </div>
+      <Transition name="collapse">
+        <div v-if="questoesOpen">
+          <div v-if="loadingQuestions" class="card-loading">
+            <div v-for="i in 3" :key="i" class="skel-row tall" :style="`--i:${i}`" />
           </div>
-          <p class="text-sm text-gray-600 mb-5">
-            Serão gerados cadernos de questões e folhas de resposta individualizados para cada aluno das turmas vinculadas.
-            Após gerado, o simulado não poderá mais ser editado.
-          </p>
-          <div v-if="generateError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl mb-4">
-            <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-            <p class="text-xs text-red-500 font-medium">{{ generateError }}</p>
+          <div v-else-if="!questionsFiltradas.length" class="card-empty">
+            <Icon name="lucide:file-question" class="w-7 h-7 text-gray-200" />
+            <p>Nenhuma questão enviada</p>
           </div>
-          <div class="flex gap-2">
-            <button class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600"
-              @click="showGenerateModal = false">Cancelar</button>
-            <button :disabled="generating"
-              class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-              :class="generating ? 'bg-indigo-200 text-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95'"
-              @click="generateBooklets">
-              <svg v-if="generating" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              {{ generating ? 'Gerando…' : 'Sim, gerar' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Modal editar questão -->
-    <Transition name="modal">
-      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showEditModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 animate-modal-in">
-          <div class="flex items-center justify-between mb-5">
-            <h3 class="text-base font-black text-gray-900">Editar questão #{{ editingQuestion?.id }}</h3>
-            <button class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors"
-              @click="showEditModal = false">
-              <Icon name="lucide:x" class="w-4 h-4 text-gray-400" />
-            </button>
-          </div>
-          <div class="space-y-4">
-            <div>
-              <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Enunciado</label>
-              <textarea v-model="editForm.stem" rows="4"
-                class="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all resize-none" />
-            </div>
-            <div>
-              <label class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-2">Alternativas</label>
-              <div class="space-y-2">
-                <div v-for="opt in editForm.options" :key="opt.label" class="flex items-center gap-2">
-                  <button
-                    class="w-8 h-8 rounded-lg border-2 text-xs font-black flex-shrink-0 transition-all"
-                    :class="editForm.correct_label === opt.label
-                      ? 'border-emerald-500 bg-emerald-500 text-white'
-                      : 'border-gray-200 text-gray-400 hover:border-gray-300'"
-                    @click="editForm.correct_label = editForm.correct_label === opt.label ? '' : opt.label">
-                    {{ opt.label }}
-                  </button>
-                  <input v-model="opt.text"
-                    class="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all" />
+          <div v-else class="q-list">
+            <div v-for="(q, i) in questionsFiltradas" :key="q.id" class="q-item group">
+              <div class="q-num">{{ i + 1 }}</div>
+              <div class="q-body">
+                <div class="q-stem question-content" v-html="renderStem(q.stem, q.images ?? [])" />
+                <div class="q-options">
+                  <div v-for="opt in q.options" :key="opt.label" class="q-opt"
+                    :class="q.correct_label === opt.label ? 'q-opt--correct' : ''">
+                    <span class="q-opt-label">{{ opt.label }}</span>
+                    <span class="question-content" v-html="renderOption(opt.text, opt.label, q.images ?? [])" />
+                    <Icon v-if="q.correct_label === opt.label" name="lucide:check" class="w-3 h-3 text-emerald-500 ml-auto flex-shrink-0" />
+                  </div>
                 </div>
               </div>
-              <p class="text-[11px] text-gray-400 mt-2">Clique na letra para marcar como gabarito</p>
-            </div>
-            <div v-if="editError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl">
-              <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-              <p class="text-xs text-red-500 font-medium">{{ editError }}</p>
-            </div>
-            <div class="flex gap-2 pt-1">
-              <button class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all"
-                @click="showEditModal = false">Cancelar</button>
-              <button :disabled="savingEdit"
-                class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-                :class="savingEdit ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-700 text-white active:scale-95'"
-                @click="saveEdit">
-                <svg v-if="savingEdit" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-                {{ savingEdit ? 'Salvando...' : 'Salvar alterações' }}
-              </button>
+              <div class="q-actions">
+                <button class="q-action" title="Editar" @click="openEditQuestion(q)">
+                  <Icon name="lucide:pencil" class="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </div>
 
-    <!-- Modal travar -->
+    <!-- Modal: travar -->
     <Transition name="modal">
-      <div v-if="showLockModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showLockModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-in">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Icon name="lucide:lock" class="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <h3 class="text-base font-black text-gray-900">Travar simulado</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Encerra a coleta de questões</p>
-            </div>
+      <div v-if="showLockModal" class="modal-overlay" @click.self="showLockModal = false">
+        <div class="modal-box">
+          <div class="modal-icon-wrap bg-blue-50">
+            <Icon name="lucide:lock" class="w-5 h-5 text-blue-500" />
           </div>
-          <p class="text-sm text-gray-600 mb-5">
-            Após travado, professores não poderão mais enviar questões. Todas as cotas precisam estar completas.
-          </p>
-          <div v-if="lockError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl mb-4">
-            <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-            <p class="text-xs text-red-500 font-medium">{{ lockError }}</p>
-          </div>
-          <div class="flex gap-2">
-            <button class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-gray-200 hover:bg-gray-50 text-gray-600"
-              @click="showLockModal = false">Cancelar</button>
-            <button :disabled="locking"
-              class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-              :class="locking ? 'bg-blue-200 text-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'"
-              @click="lockExam">
-              <svg v-if="locking" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
+          <h3 class="modal-title">Travar simulado</h3>
+          <p class="modal-body">Após travado, professores não poderão mais enviar questões.</p>
+          <p v-if="lockError" class="error-msg">{{ lockError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showLockModal = false">Cancelar</button>
+            <button class="btn-blue" :disabled="locking" @click="lockExam">
               {{ locking ? 'Travando...' : 'Sim, travar' }}
             </button>
           </div>
@@ -581,57 +283,77 @@
       </div>
     </Transition>
 
-    <!-- Modal vincular turmas -->
+    <!-- Modal: gerar cadernos -->
     <Transition name="modal">
-      <div v-if="showAssignModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/25 backdrop-blur-sm" @click="showAssignModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-modal-in">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h3 class="text-base font-black text-gray-900">Vincular turmas</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Selecione as turmas que farão este simulado</p>
-            </div>
-            <button class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center"
-              @click="showAssignModal = false">
-              <Icon name="lucide:x" class="w-4 h-4 text-gray-400" />
+      <div v-if="showGenerateModal" class="modal-overlay" @click.self="showGenerateModal = false">
+        <div class="modal-box">
+          <div class="modal-icon-wrap bg-indigo-50">
+            <Icon name="lucide:book-open" class="w-5 h-5 text-indigo-500" />
+          </div>
+          <h3 class="modal-title">Gerar cadernos</h3>
+          <p class="modal-body">Será gerado um caderno e cartão de resposta para cada aluno das turmas vinculadas.</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showGenerateModal = false">Cancelar</button>
+            <button class="btn-indigo" @click="generateBooklets">Gerar</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Modal: vincular turmas -->
+    <Transition name="modal">
+      <div v-if="showAssignModal" class="modal-overlay" @click.self="showAssignModal = false">
+        <div class="modal-box modal-box--wide">
+          <h3 class="modal-title">Vincular turmas</h3>
+          <div class="relative mb-3">
+            <Icon name="lucide:search" class="search-icon-sm" />
+            <input v-model="buscaTurma" placeholder="Buscar turma..." class="field-input pl-8" />
+          </div>
+          <div class="class-selector">
+            <label v-for="cls in turmasFiltradas" :key="cls.id" class="class-check-item">
+              <input type="checkbox" :value="cls.id" v-model="selectedClasses" class="accent-blue-600" />
+              <span>{{ cls.name }}</span>
+            </label>
+            <p v-if="!turmasFiltradas.length" class="empty-note">Todas as turmas já estão vinculadas</p>
+          </div>
+          <p v-if="assignError" class="error-msg mt-2">{{ assignError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showAssignModal = false">Cancelar</button>
+            <button class="btn-primary" :disabled="!selectedClasses.length || assigning" @click="assignClasses">
+              {{ assigning ? 'Vinculando...' : `Vincular ${selectedClasses.length || ''} turma${selectedClasses.length !== 1 ? 's' : ''}` }}
             </button>
           </div>
-          <div class="relative mb-3">
-            <Icon name="lucide:search" class="w-3.5 h-3.5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input v-model="buscaTurma"
-              class="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
-              placeholder="Filtrar turmas..." />
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Modal: editar questão -->
+    <Transition name="modal">
+      <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+        <div class="modal-box modal-box--wide">
+          <h3 class="modal-title">Editar questão</h3>
+          <div class="field mb-3">
+            <label class="field-label">Enunciado</label>
+            <textarea v-model="editForm.stem" rows="4" class="field-input resize-none" />
           </div>
-          <div class="max-h-64 overflow-y-auto space-y-1 mb-4">
-            <div v-for="cls in turmasFiltradas" :key="cls.id"
-              class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
-              @click="toggleTurma(cls.id)">
-              <div class="w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                :class="selectedClasses.includes(cls.id) ? 'border-gray-900 bg-gray-900' : 'border-gray-200'">
-                <Icon v-if="selectedClasses.includes(cls.id)" name="lucide:check" class="w-3 h-3 text-white" />
+          <div class="field mb-3">
+            <label class="field-label">Alternativas</label>
+            <div class="space-y-1.5">
+              <div v-for="opt in editForm.options" :key="opt.label" class="flex items-center gap-2">
+                <button class="opt-sel-btn"
+                  :class="editForm.correct_label === opt.label ? 'opt-sel-btn--on' : ''"
+                  @click="editForm.correct_label = opt.label">{{ opt.label }}</button>
+                <input v-model="opt.text" class="field-input flex-1" />
               </div>
-              <span class="text-sm font-semibold text-gray-700">{{ cls.name }}</span>
-              <span class="text-[10px] text-gray-400 ml-auto">
-                {{ cls.grade?.level === 'fundamental' ? 'Fund.' : 'Médio' }}
-              </span>
             </div>
           </div>
-          <div v-if="assignError" class="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl mb-3">
-            <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-            <p class="text-xs text-red-500 font-medium">{{ assignError }}</p>
+          <p v-if="editError" class="error-msg mb-2">{{ editError }}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showEditModal = false">Cancelar</button>
+            <button class="btn-primary" :disabled="savingEdit" @click="saveEdit">
+              {{ savingEdit ? 'Salvando...' : 'Salvar' }}
+            </button>
           </div>
-          <button :disabled="!selectedClasses.length || assigning"
-            class="w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-            :class="!selectedClasses.length || assigning
-              ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-              : 'bg-gray-900 hover:bg-gray-700 text-white active:scale-95'"
-            @click="assignClasses">
-            <svg v-if="assigning" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-            </svg>
-            {{ assigning ? 'Vinculando...' : `Vincular ${selectedClasses.length} turma${selectedClasses.length !== 1 ? 's' : ''}` }}
-          </button>
         </div>
       </div>
     </Transition>
@@ -642,14 +364,14 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard' })
 
-useHead({
-  link: [{ rel: 'stylesheet', href: 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css' }],
-})
+useHead({ link: [{ rel: 'stylesheet', href: 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css' }] })
 
-const route = useRoute()
+const route   = useRoute()
 const { get, post, patch, accessToken } = useApi()
 const { renderStem, renderOption } = useQuestionRenderer()
-const examId = computed(() => Number(route.params.id))
+const BASE_URL = useRuntimeConfig().public.apiBase as string
+const examId   = computed(() => Number(route.params.id))
+const mounted  = ref(false)
 
 // Data
 const exam        = ref<any>(null)
@@ -658,420 +380,167 @@ const examClasses = ref<any[]>([])
 const disciplines = ref<any[]>([])
 const allClasses  = ref<any[]>([])
 const questions   = ref<any[]>([])
+const students    = ref<any[]>([])
 const filterDisc  = ref<number | ''>('')
 
 // Loading
-const loading          = ref(true)
-const loadingProgress  = ref(true)
-const loadingClasses   = ref(true)
-const loadingQuestions = ref(true)
-
-// Lock modal
-const showLockModal = ref(false)
-const locking       = ref(false)
-const lockError     = ref('')
-
-// Assign modal
-const showAssignModal = ref(false)
-const selectedClasses = ref<number[]>([])
-const buscaTurma      = ref('')
-const assigning       = ref(false)
-const assignError     = ref('')
-
-// Edit question modal
-const showEditModal   = ref(false)
-const editingQuestion = ref<any>(null)
-const savingEdit      = ref(false)
-const editError       = ref('')
-const editForm = reactive<{
-  stem: string
-  options: { label: string; text: string }[]
-  correct_label: string
-}>({ stem: '', options: [], correct_label: '' })
-
-// ===== CADERNOS =====
-const showGenerateModal = ref(false)
-const generating        = ref(false)
-const generateError     = ref('')
-
-const bookletClassId  = ref<number | null>(null)
-const students        = ref<any[]>([])
+const loading         = ref(true)
+const loadingProgress = ref(true)
+const loadingClasses  = ref(true)
+const loadingQuestions= ref(true)
 const loadingBooklets = ref(false)
-const bookletError    = ref('')
 
-// loading individual por aluno: chave `b_{id}` (booklet) ou `a_{id}` (answer sheet)
-const pdfLoading = ref<Record<string, boolean>>({})
+// Modals
+const showLockModal     = ref(false)
+const showGenerateModal = ref(false)
+const showAssignModal   = ref(false)
+const showEditModal     = ref(false)
+const locking   = ref(false); const lockError   = ref('')
+const assigning = ref(false); const assignError = ref('')
+const generating= ref(false); const generateError= ref('')
+const savingEdit= ref(false); const editError   = ref('')
 
-// loading em lote
-const batchLoading   = ref({ booklets: false, answers: false })
-const batchOverlay   = ref(false)
-const batchElapsed   = ref(0)
-const batchTimer     = ref<any>(null)
+const selectedClasses  = ref<number[]>([])
+const buscaTurma       = ref('')
+const bookletClassId   = ref<number | null>(null)
+const questoesOpen     = ref(false)
+const bookletError     = ref('')
+const pdfLoading       = ref<Record<string,boolean>>({})
+const batchLoading     = ref({ booklets: false, answers: false })
 
-// Etapas do processo de geração
-interface BatchStep {
-  label: string      // ex: "Cadernos de questões — 1ªB"
-  sublabel: string   // ex: "Gerando PDFs individuais..."
-  icon: string
-  color: string      // cor do arco SVG
-  iconColor: string  // classe tailwind para o ícone
-  bgColor: string    // fundo do anel
-  done: boolean
-}
-const batchSteps     = ref<BatchStep[]>([])
-const batchStepIdx   = ref(0)
+// Edit modal
+const editingQuestion = ref<any>(null)
+const editForm = reactive<{ stem: string; options: {label:string;text:string}[]; correct_label: string }>({ stem:'', options:[], correct_label:'' })
 
-const STEP_COLORS = [
-  { color: '#3b82f6', iconColor: 'text-blue-500',   bgColor: '#dbeafe' },   // azul
-  { color: '#8b5cf6', iconColor: 'text-violet-500', bgColor: '#ede9fe' },   // roxo
-  { color: '#10b981', iconColor: 'text-emerald-500',bgColor: '#d1fae5' },   // verde
-  { color: '#f59e0b', iconColor: 'text-amber-500',  bgColor: '#fef3c7' },   // âmbar
-]
-const STEP_ICONS = ['lucide:book-open', 'lucide:book-open', 'lucide:file-check', 'lucide:file-check']
-
-const currentStep = computed(() => batchSteps.value[batchStepIdx.value] ?? null)
-const stepColor   = computed(() => STEP_COLORS[batchStepIdx.value % STEP_COLORS.length])
-
-function initBatchSteps(classNames: string[]) {
-  batchSteps.value = [
-    ...classNames.map((n, i) => ({
-      label: `Cadernos de questões — ${n}`,
-      sublabel: 'Gerando PDFs individuais…',
-      icon: STEP_ICONS[i % 2],
-      color: STEP_COLORS[i % STEP_COLORS.length].color,
-      iconColor: STEP_COLORS[i % STEP_COLORS.length].iconColor,
-      bgColor: STEP_COLORS[i % STEP_COLORS.length].bgColor,
-      done: false,
-    })),
-    ...classNames.map((n, i) => ({
-      label: `Folhas de resposta — ${n}`,
-      sublabel: 'Gerando gabaritos…',
-      icon: STEP_ICONS[2 + i % 2],
-      color: STEP_COLORS[(classNames.length + i) % STEP_COLORS.length].color,
-      iconColor: STEP_COLORS[(classNames.length + i) % STEP_COLORS.length].iconColor,
-      bgColor: STEP_COLORS[(classNames.length + i) % STEP_COLORS.length].bgColor,
-      done: false,
-    })),
-  ]
-  batchStepIdx.value = 0
-}
-function advanceBatchStep() {
-  if (batchSteps.value[batchStepIdx.value]) {
-    batchSteps.value[batchStepIdx.value].done = true
-  }
-  batchStepIdx.value++
-}
-
-function startBatchTimer(classNames: string[]) {
-  initBatchSteps(classNames)
-  batchOverlay.value = true
-  batchElapsed.value = 0
-  clearInterval(batchTimer.value)
-  batchTimer.value = setInterval(() => { batchElapsed.value++ }, 1000)
-}
-function stopBatchTimer() {
-  clearInterval(batchTimer.value)
-  batchTimer.value = null
-  // Pequeno delay para mostrar conclusão antes de fechar
-  setTimeout(() => { batchOverlay.value = false }, 600)
-}
-function fmtTime(s: number) {
-  const m = Math.floor(s / 60), sec = s % 60
-  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
-}
-
-// Computed
-const statCards = computed(() => [
-  {
-    label: 'Questões enviadas',
-    value: questions.value.length,
-    icon: 'lucide:file-text', iconBg: 'bg-blue-50', iconColor: 'text-blue-500',
-  },
-  {
-    label: 'Total esperado',
-    value: progress.value?.disciplines?.reduce((s: number, d: any) => s + d.quota, 0) ?? 0,
-    icon: 'lucide:target', iconBg: 'bg-violet-50', iconColor: 'text-violet-500',
-  },
-  {
-    label: 'Turmas',
-    value: examClasses.value.length,
-    icon: 'lucide:users', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500',
-  },
-  {
-    label: 'Alternativas',
-    value: exam.value?.options_count ?? '—',
-    icon: 'lucide:list-ordered', iconBg: 'bg-gray-50', iconColor: 'text-gray-400',
-  },
-])
+// Batch overlay
+const batchOverlay  = ref(false)
+const batchElapsed  = ref(0)
+const batchTimer    = ref<any>(null)
+const batchStepIdx  = ref(0)
+const batchSteps    = ref<any[]>([])
 
 const questionsFiltradas = computed(() =>
-  filterDisc.value
-    ? questions.value.filter(q => q.discipline_id === filterDisc.value)
-    : questions.value
+  filterDisc.value ? questions.value.filter(q => q.discipline_id === filterDisc.value) : questions.value
 )
-
 const turmasFiltradas = computed(() => {
-  const q = buscaTurma.value.toLowerCase()
   const vinculadas = new Set(examClasses.value.map(c => c.class_id))
   const lista = allClasses.value.filter(c => !vinculadas.has(c.id))
+  const q = buscaTurma.value.toLowerCase()
   return q ? lista.filter(c => c.name.toLowerCase().includes(q)) : lista
 })
+const statCards = computed(() => [
+  { label:'Questões', value: questions.value.length, icon:'lucide:file-text', iconBg:'bg-blue-50', iconColor:'text-blue-500' },
+  { label:'Total esperado', value: progress.value?.disciplines?.reduce((s:number,d:any)=>s+d.quota,0)??0, icon:'lucide:target', iconBg:'bg-violet-50', iconColor:'text-violet-500' },
+  { label:'Turmas', value: examClasses.value.length, icon:'lucide:users', iconBg:'bg-emerald-50', iconColor:'text-emerald-500' },
+  { label:'Alternativas', value: exam.value?.options_count ?? '—', icon:'lucide:list-ordered', iconBg:'bg-gray-50', iconColor:'text-gray-400' },
+])
 
-// Status helpers
-function statusLabel(s?: string) {
-  return ({ collecting: 'Em coleta', locked: 'Travado', published: 'Publicado', draft: 'Rascunho', review: 'Em revisão', generated: 'Gerado' } as any)[s ?? ''] ?? s
-}
-function statusBadge(s?: string) {
-  return ({ collecting: 'bg-amber-50 text-amber-700', locked: 'bg-blue-50 text-blue-700', published: 'bg-emerald-50 text-emerald-700', generated: 'bg-indigo-50 text-indigo-700', review: 'bg-purple-50 text-purple-700' } as any)[s ?? ''] ?? 'bg-gray-50 text-gray-500'
-}
-function statusDot(s?: string) {
-  return ({ collecting: 'bg-amber-400', locked: 'bg-blue-400', published: 'bg-emerald-400', generated: 'bg-indigo-400', review: 'bg-purple-400' } as any)[s ?? ''] ?? 'bg-gray-300'
-}
-function statusBg(s?: string) {
-  return ({ collecting: 'bg-amber-50', locked: 'bg-blue-50', published: 'bg-emerald-50', generated: 'bg-indigo-50' } as any)[s ?? ''] ?? 'bg-gray-50'
-}
-function statusIcon(s?: string) {
-  return ({ collecting: 'lucide:pencil', locked: 'lucide:lock', published: 'lucide:check-circle-2', generated: 'lucide:book-open', review: 'lucide:eye' } as any)[s ?? ''] ?? 'lucide:file'
-}
-function statusIconColor(s?: string) {
-  return ({ collecting: 'text-amber-500', locked: 'text-blue-500', published: 'text-emerald-500', generated: 'text-indigo-500', review: 'text-purple-500' } as any)[s ?? ''] ?? 'text-gray-400'
-}
-function answerSourceLabel(s: string) {
-  return ({ teachers: 'Gabarito pelos professores', coordinator: 'Gabarito pelo coordenador' } as any)[s] ?? s
-}
-function disciplineName(id: number) {
-  return disciplines.value.find(d => d.id === id)?.name ?? `Disciplina #${id}`
-}
-function toggleTurma(id: number) {
-  const idx = selectedClasses.value.indexOf(id)
-  if (idx === -1) selectedClasses.value.push(id)
-  else selectedClasses.value.splice(idx, 1)
-}
+function statusBg(s?: string) { return ({collecting:'bg-amber-50',review:'bg-purple-50',locked:'bg-blue-50',generated:'bg-indigo-50',published:'bg-emerald-50',draft:'bg-gray-50'}as any)[s??'']??'bg-gray-50' }
+function statusIcon(s?: string) { return ({collecting:'lucide:pencil',review:'lucide:eye',locked:'lucide:lock',generated:'lucide:book-open',published:'lucide:check-circle-2',draft:'lucide:file'}as any)[s??'']??'lucide:file' }
+function statusIconColor(s?: string) { return ({collecting:'text-amber-500',review:'text-purple-500',locked:'text-blue-500',generated:'text-indigo-500',published:'text-emerald-500',draft:'text-gray-400'}as any)[s??'']??'text-gray-400' }
+function statusBadge(s?: string) { return ({collecting:'sb-amber',review:'sb-purple',locked:'sb-blue',generated:'sb-indigo',published:'sb-emerald',draft:'sb-gray'}as any)[s??'']??'sb-gray' }
+function statusDotColor(s?: string) { return ({collecting:'dot-amber',review:'dot-purple',locked:'dot-blue',generated:'dot-indigo',published:'dot-emerald',draft:'dot-gray'}as any)[s??'']??'dot-gray' }
+function statusLabel(s?: string) { return ({collecting:'Em coleta',review:'Em revisão',locked:'Travado',generated:'Gerado',published:'Publicado',draft:'Rascunho'}as any)[s??'']??s }
+function answerSourceLabel(s?: string) { return ({teachers:'Gabarito pelos professores',coordinator_omr:'Gabarito via OMR'}as any)[s??'']??s }
+function disciplineName(id: number) { return disciplines.value.find(d=>d.id===id)?.name??`Disciplina #${id}` }
+function fmtTime(s: number) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` }
 
-const COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899']
-function avatarColor(name: string) {
-  let h = 0
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffff
-  return COLORS[h % COLORS.length]
-}
-
-// Edit question
 function openEditQuestion(q: any) {
   editingQuestion.value = q
   editForm.stem = q.stem
-  editForm.options = q.options.map((o: any) => ({ label: o.label, text: o.text }))
+  editForm.options = q.options.map((o:any) => ({ label:o.label, text:o.text }))
   editForm.correct_label = q.correct_label ?? ''
-  editError.value = ''
-  showEditModal.value = true
+  editError.value = ''; showEditModal.value = true
 }
-
 async function saveEdit() {
   if (!editingQuestion.value) return
-  savingEdit.value = true
-  editError.value = ''
+  savingEdit.value = true; editError.value = ''
   try {
     const updated = await patch<any>(`/exams/${examId.value}/questions/${editingQuestion.value.id}`, {
-      stem: editForm.stem,
-      options: editForm.options,
-      correct_label: editForm.correct_label || null,
+      stem: editForm.stem, options: editForm.options, correct_label: editForm.correct_label || null,
     })
-    const idx = questions.value.findIndex(q => q.id === editingQuestion.value.id)
+    const idx = questions.value.findIndex(q=>q.id===editingQuestion.value.id)
     if (idx !== -1) questions.value[idx] = updated
     showEditModal.value = false
-  } catch (e: any) {
-    editError.value = e.message ?? 'Erro ao salvar questão.'
-  } finally {
-    savingEdit.value = false
-  }
+  } catch (e:any) { editError.value = e.message??'Erro ao salvar.' } finally { savingEdit.value = false }
 }
-
 async function lockExam() {
-  locking.value = true
-  lockError.value = ''
-  try {
-    await post(`/exams/${examId.value}/lock`, {})
-    exam.value.status = 'locked'
-    showLockModal.value = false
-  } catch (e: any) {
-    lockError.value = e.message ?? 'Erro ao travar simulado.'
-  } finally {
-    locking.value = false
-  }
+  locking.value = true; lockError.value = ''
+  try { await post(`/exams/${examId.value}/lock`, {}); exam.value.status='locked'; showLockModal.value=false }
+  catch (e:any) { lockError.value = e.message??'Erro ao travar.' } finally { locking.value=false }
 }
-
 async function assignClasses() {
   if (!selectedClasses.value.length) return
-  assigning.value = true
-  assignError.value = ''
+  assigning.value = true; assignError.value = ''
   try {
     await post(`/exams/${examId.value}/assign-classes`, { class_ids: selectedClasses.value })
     examClasses.value = await get<any[]>(`/exams/${examId.value}/classes`)
-    showAssignModal.value = false
-    selectedClasses.value = []
-    buscaTurma.value = ''
-  } catch (e: any) {
-    assignError.value = e.message ?? 'Erro ao vincular turmas.'
-  } finally {
-    assigning.value = false
-  }
+    showAssignModal.value=false; selectedClasses.value=[]; buscaTurma.value=''
+  } catch (e:any) { assignError.value=e.message??'Erro ao vincular.' } finally { assigning.value=false }
 }
 
-// ===== CADERNOS — LÓGICA =====
+function startBatchTimer(classNames: string[]) {
+  batchSteps.value = classNames.map(n=>({ label:`Gerando PDFs — ${n}`, sublabel:'Caderno + cartão de resposta…', done:false }))
+  batchStepIdx.value=0; batchOverlay.value=true; batchElapsed.value=0
+  clearInterval(batchTimer.value); batchTimer.value=setInterval(()=>{batchElapsed.value++},1000)
+}
+function stopBatchTimer() { clearInterval(batchTimer.value); batchTimer.value=null; setTimeout(()=>{batchOverlay.value=false},600) }
+function advanceBatchStep() { if (batchSteps.value[batchStepIdx.value]) batchSteps.value[batchStepIdx.value].done=true; batchStepIdx.value++ }
 
 async function generateBooklets() {
-  generating.value = true
-  generateError.value = ''
-  showGenerateModal.value = false
-  const classIds   = examClasses.value.map((c: any) => c.class_id)
-  const classNames = examClasses.value.map((c: any) => c.class_name)
-  startBatchTimer(classNames)
+  generating.value=true; generateError.value=''; showGenerateModal.value=false
+  const classIds = examClasses.value.map((c:any)=>c.class_id)
+  startBatchTimer(examClasses.value.map((c:any)=>c.class_name))
   try {
-    if (!classIds.length) throw new Error('Nenhuma turma vinculada ao simulado.')
-    const token = accessToken.value ?? (import.meta.client ? localStorage.getItem('samba_token') : null)
-    // Etapas 0..N-1: cadernos por turma
+    if (!classIds.length) throw new Error('Nenhuma turma vinculada.')
+    const token = accessToken.value
     for (const classId of classIds) {
-      const res = await fetch(`http://localhost:8000/exams/${examId.value}/pdf/generate?class_id=${classId}`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        credentials: 'include',
+      const res = await fetch(`${BASE_URL}/exams/${examId.value}/pdf/generate?class_id=${classId}`, {
+        method:'POST', headers: token ? { Authorization:`Bearer ${token}` } : {}, credentials:'include',
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: `Erro ${res.status}` }))
-        throw new Error(err.detail ?? `Erro ${res.status}`)
-      }
+      if (!res.ok) { const err=await res.json().catch(()=>({detail:`Erro ${res.status}`})); throw new Error(err.detail) }
       advanceBatchStep()
     }
-    // Etapas N..2N-1: folhas de resposta por turma
-    for (const classId of classIds) {
-      const res = await fetch(`http://localhost:8000/exams/${examId.value}/pdf/generate?class_id=${classId}&type=answer_sheet`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        credentials: 'include',
-      })
-      // ignora erro de folha de resposta (pode não ter endpoint ainda)
-      advanceBatchStep()
-    }
-    exam.value.status = 'generated'
+    exam.value.status='generated'
     if (bookletClassId.value) await loadStudents(bookletClassId.value)
-  } catch (e: any) {
-    generateError.value = e.message ?? 'Erro ao gerar cadernos.'
-  } finally {
-    generating.value = false
-    stopBatchTimer()
-  }
+  } catch (e:any) { generateError.value=e.message??'Erro ao gerar cadernos.' } finally { generating.value=false; stopBatchTimer() }
 }
 
-async function selectBookletClass(classId: number) {
-  bookletClassId.value = classId
-  await loadStudents(classId)
-}
-
+async function selectBookletClass(classId: number) { bookletClassId.value=classId; await loadStudents(classId) }
 async function loadStudents(classId: number) {
-  loadingBooklets.value = true
-  bookletError.value = ''
-  try {
-    const data = await get<any[]>(`/school/students?class_id=${classId}`)
-    students.value = data ?? []
-  } catch (e: any) {
-    students.value = []
-    bookletError.value = 'Não foi possível carregar os alunos.'
-  } finally {
-    loadingBooklets.value = false
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Download helpers
-// ---------------------------------------------------------------------------
-async function _triggerDownload(blob: Blob, filename: string) {
-  // Tenta File System Access API (Chrome/Edge — abre seletor de pasta)
-  if ('showSaveFilePicker' in window) {
-    try {
-      const ext  = filename.split('.').pop() ?? 'bin'
-      const mime = ext === 'pdf' ? 'application/pdf' : 'application/zip'
-      const handle = await (window as any).showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: ext.toUpperCase(), accept: { [mime]: [`.${ext}`] } }],
-      })
-      const writable = await handle.createWritable()
-      await writable.write(blob)
-      await writable.close()
-      return
-    } catch (e: any) {
-      // Usuário cancelou ou API não disponível — cai no fallback
-      if (e?.name === 'AbortError') return
-    }
-  }
-  // Fallback: download direto na pasta padrão do navegador
-  const url = URL.createObjectURL(blob)
-  const a   = document.createElement('a')
-  a.href = url; a.download = filename
-  document.body.appendChild(a); a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  loadingBooklets.value=true; bookletError.value=''
+  try { students.value = await get<any[]>(`/school/students?class_id=${classId}`) }
+  catch { students.value=[]; bookletError.value='Não foi possível carregar alunos.' } finally { loadingBooklets.value=false }
 }
 
 async function _fetchBlob(path: string): Promise<Blob> {
-  const token = accessToken.value ?? (import.meta.client ? localStorage.getItem('samba_token') : null)
-  const res = await fetch(`http://localhost:8000${path}`, {
-    headers:     token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: 'include',
-  })
+  const token = accessToken.value
+  const res = await fetch(`${BASE_URL}${path}`, { headers: token ? { Authorization:`Bearer ${token}` } : {}, credentials:'include' })
   if (!res.ok) throw new Error(`Erro ${res.status}`)
   return res.blob()
 }
-
-async function downloadStudentBooklet(studentId: number, studentName: string, type: 'booklet' | 'answer') {
-  const key = `${type === 'booklet' ? 'b' : 'a'}_${studentId}`
-  pdfLoading.value[key] = true
-  bookletError.value = ''
-  const student = students.value.find((s: any) => s.id === studentId)
-  const cls = examClasses.value.find((c: any) => c.class_id === bookletClassId.value)
-  const turma = (cls?.class_name ?? '').replace(/\s/g, '').replace(/[ª°]/g, '').toLowerCase()
-  const ra    = student?.ra ?? String(studentId)
-  const nome  = studentName.split(' ').slice(0, 2).map((w: string) => w.toLowerCase()).join('_')
-  try {
-    if (type === 'booklet') {
-      const blob = await _fetchBlob(`/exams/${examId.value}/pdf/download?student_id=${studentId}&type=booklet`)
-      _triggerDownload(blob, `caderno_${turma}_${ra}_${nome}.pdf`)
-    } else {
-      const blob = await _fetchBlob(`/exams/${examId.value}/pdf/download?student_id=${studentId}&type=answer_sheet`)
-      _triggerDownload(blob, `resposta_${turma}_${ra}_${nome}.pdf`)
-    }
-  } catch (e: any) {
-    bookletError.value = `Erro ao gerar PDF: ${e?.message ?? 'tente novamente'}`
-    setTimeout(() => { bookletError.value = '' }, 4000)
-  } finally {
-    pdfLoading.value[key] = false
-  }
+async function _triggerDownload(blob: Blob, filename: string) {
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),1000)
 }
-
-async function downloadBatch(type: 'booklets' | 'answers') {
-  batchLoading.value[type] = true
-  bookletError.value = ''
-  const cls = examClasses.value.find(c => c.class_id === bookletClassId.value)
-  const className = cls?.class_name?.replace(/\s/g, '') ?? bookletClassId.value
-  const label = cls?.class_name ?? String(bookletClassId.value)
-  startBatchTimer([label])
+async function downloadStudentBooklet(studentId: number, studentName: string, type: 'booklet'|'answer') {
+  const key=`${type==='booklet'?'b':'a'}_${studentId}`; pdfLoading.value[key]=true; bookletError.value=''
   try {
-    if (type === 'booklets') {
-      const blob = await _fetchBlob(`/exams/${examId.value}/pdf/batch/?class_id=${bookletClassId.value}&type=booklets`)
-      _triggerDownload(blob, `cadernos_${className}_exam${examId.value}.pdf`)
-    } else {
-      const blob = await _fetchBlob(`/exams/${examId.value}/pdf/batch/?class_id=${bookletClassId.value}&type=omr`)
-      _triggerDownload(blob, `respostas_${className}_exam${examId.value}.pdf`)
-    }
-  } catch (e: any) {
-    bookletError.value = `Erro ao gerar arquivo: ${e?.message ?? 'tente novamente'}`
-    setTimeout(() => { bookletError.value = '' }, 4000)
-  } finally {
-    batchLoading.value[type] = false
-    stopBatchTimer()
-  }
+    const blob=await _fetchBlob(`/exams/${examId.value}/pdf/download?student_id=${studentId}&type=${type==='booklet'?'booklet':'answer_sheet'}`)
+    _triggerDownload(blob, `${type}_${studentId}.pdf`)
+  } catch (e:any) { bookletError.value=`Erro: ${e?.message??'tente novamente'}` } finally { pdfLoading.value[key]=false }
+}
+async function downloadBatch(type: 'booklets'|'answers') {
+  batchLoading.value[type]=true; bookletError.value=''
+  try {
+    const blob=await _fetchBlob(`/exams/${examId.value}/pdf/batch/?class_id=${bookletClassId.value}&type=${type==='booklets'?'booklets':'omr'}`)
+    _triggerDownload(blob, `${type}_exam${examId.value}.pdf`)
+  } catch (e:any) { bookletError.value=`Erro: ${e?.message??'tente novamente'}` } finally { batchLoading.value[type]=false }
 }
 
 onMounted(async () => {
-  const [examRes, progressRes, classesRes, discRes, allClassesRes, questionsRes] = await Promise.allSettled([
+  await nextTick(); setTimeout(()=>{mounted.value=true},30)
+  const [examRes,progressRes,classesRes,discRes,allClassesRes,questionsRes] = await Promise.allSettled([
     get<any>(`/exams/${examId.value}`),
     get<any>(`/exams/${examId.value}/progress`),
     get<any[]>(`/exams/${examId.value}/classes`),
@@ -1079,54 +548,207 @@ onMounted(async () => {
     get<any[]>('/school/classes'),
     get<any[]>(`/exams/${examId.value}/questions`),
   ])
-
-  if (examRes.status === 'fulfilled')       exam.value        = examRes.value
-  if (progressRes.status === 'fulfilled')   progress.value    = progressRes.value
-  if (classesRes.status === 'fulfilled')    examClasses.value = classesRes.value
-  if (discRes.status === 'fulfilled')       disciplines.value = discRes.value
-  if (allClassesRes.status === 'fulfilled') allClasses.value  = allClassesRes.value
-  if (questionsRes.status === 'fulfilled')  questions.value   = questionsRes.value
-
-  loading.value          = false
-  loadingProgress.value  = false
-  loadingClasses.value   = false
-  loadingQuestions.value = false
+  if (examRes.status==='fulfilled')      exam.value        = examRes.value
+  if (progressRes.status==='fulfilled')  progress.value    = progressRes.value
+  if (classesRes.status==='fulfilled')   examClasses.value = classesRes.value
+  if (discRes.status==='fulfilled')      disciplines.value = discRes.value
+  if (allClassesRes.status==='fulfilled')allClasses.value  = allClassesRes.value
+  if (questionsRes.status==='fulfilled') questions.value   = questionsRes.value
+  loading.value=false; loadingProgress.value=false; loadingClasses.value=false; loadingQuestions.value=false
 })
 </script>
 
 <style scoped>
-@keyframes fade-in  { from { opacity:0; transform:translateY(6px)  } to { opacity:1; transform:translateY(0) } }
-@keyframes fade-up  { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-@keyframes modal-in { from { opacity:0; transform:scale(0.94) translateY(10px) } to { opacity:1; transform:scale(1) translateY(0) } }
+.page { display:flex; flex-direction:column; gap:1.25rem; padding-bottom:2rem; }
 
-.animate-fade-in  { animation: fade-in  0.3s  ease both }
-.animate-fade-up  { animation: fade-up  0.38s ease both }
-.animate-modal-in { animation: modal-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both }
+.fade-in { opacity:0; transform:translateY(10px); transition:opacity .35s ease var(--d,.0s), transform .35s ease var(--d,.0s); }
+.fade-in.ready { opacity:1; transform:translateY(0); }
 
-.modal-enter-active, .modal-leave-active { transition: opacity 0.18s ease }
-.modal-enter-from, .modal-leave-to { opacity: 0 }
+.back-link { display:inline-flex; align-items:center; gap:.4rem; font-size:.75rem; font-weight:700; color:#9ca3af; text-decoration:none; transition:color .13s; }
+.back-link:hover { color:#374151; }
 
-.slide-up-enter-active { transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1) }
-.slide-up-leave-active { transition: opacity 0.15s ease, transform 0.15s ease }
-.slide-up-enter-from   { opacity:0; transform:translateY(10px) }
-.slide-up-leave-to     { opacity:0; transform:translateY(6px) }
-.question-content :deep(img.question-img) {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-  margin: 6px 0;
-  display: block;
+/* Header card */
+.skel-header { height:7rem; background:white; border:1px solid #f3f4f6; border-radius:1rem; animation:shimmer 1.5s ease-in-out infinite; }
+.header-card { background:white; border:1px solid #f3f4f6; border-radius:1rem; padding:1.25rem; display:flex; flex-direction:column; gap:1rem; }
+.header-main { display:flex; align-items:flex-start; gap:1rem; flex-wrap:wrap; }
+.header-icon { width:3rem; height:3rem; border-radius:.75rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.header-info { flex:1; min-width:0; }
+.header-title-row { display:flex; align-items:center; gap:.625rem; flex-wrap:wrap; margin-bottom:.25rem; }
+.header-title { font-size:1.25rem; font-weight:800; color:#111827; margin:0; line-height:1.2; }
+.header-meta  { font-size:.75rem; color:#9ca3af; margin:0; }
+.header-actions { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+
+.stats-strip { display:grid; grid-template-columns:repeat(2,1fr); gap:.75rem; padding-top:1rem; border-top:1px solid #f9fafb; }
+@media(min-width:640px) { .stats-strip { grid-template-columns:repeat(4,1fr); } }
+.stat-item { display:flex; align-items:center; gap:.625rem; }
+.stat-icon-sm { width:2rem; height:2rem; border-radius:.5rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.stat-value { font-size:1rem; font-weight:800; color:#111827; line-height:1; }
+.stat-label { font-size:.65rem; color:#9ca3af; margin-top:.15rem; }
+
+/* Buttons */
+.btn-primary, .btn-secondary, .btn-indigo, .btn-done, .btn-blue, .btn-cancel, .btn-download {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.5rem .875rem; border-radius:.625rem; font-size:.75rem; font-weight:700;
+  cursor:pointer; white-space:nowrap; transition:all .13s; border:none; text-decoration:none;
 }
-.question-content :deep(.katex-display) {
-  margin: 8px 0;
-  overflow-x: auto;
+.btn-primary  { background:#111827; color:white; } .btn-primary:hover { background:#1f2937; }
+.btn-secondary { background:white; color:#374151; border:1px solid #e5e7eb; } .btn-secondary:hover { background:#f9fafb; }
+.btn-indigo   { background:#4f46e5; color:white; } .btn-indigo:hover { background:#4338ca; }
+.btn-blue     { background:#2563eb; color:white; } .btn-blue:hover { background:#1d4ed8; }
+.btn-done     { background:#ede9fe; color:#5b21b6; cursor:default; }
+.btn-cancel   { background:white; color:#6b7280; border:1px solid #e5e7eb; } .btn-cancel:hover { background:#f9fafb; }
+.btn-download { background:#f9fafb; color:#374151; border:1px solid #e5e7eb; } .btn-download:hover { background:#f3f4f6; }
+.btn-download:disabled { opacity:.5; cursor:not-allowed; }
+
+/* Cards */
+.card { background:white; border:1px solid #f3f4f6; border-radius:1rem; overflow:hidden; }
+.card-header { display:flex; align-items:center; justify-content:space-between; padding:.875rem 1.25rem; border-bottom:1px solid #f9fafb; }
+.card-title  { display:flex; align-items:center; gap:.5rem; font-size:.8rem; font-weight:700; color:#111827; }
+.link-sm     { display:inline-flex; align-items:center; gap:.25rem; font-size:.7rem; font-weight:600; color:#3b82f6; text-decoration:none; background:none; border:none; cursor:pointer; }
+.link-sm:hover { color:#2563eb; }
+.count-badge { font-size:.65rem; font-weight:700; padding:.1rem .4rem; border-radius:9999px; background:#f3f4f6; color:#6b7280; }
+.card-loading { padding:.75rem 1rem; display:flex; flex-direction:column; gap:.5rem; }
+.skel-row { height:3rem; background:#f9fafb; border-radius:.625rem; animation:shimmer 1.5s ease-in-out infinite; animation-delay:calc(var(--i,0)*120ms); }
+.skel-row.tall { height:4.5rem; }
+.card-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2.5rem 1rem; gap:.5rem; }
+.card-empty p { font-size:.78rem; color:#9ca3af; margin:0; }
+
+/* Main grid */
+.main-grid { display:grid; grid-template-columns:1fr; gap:.75rem; }
+@media(min-width:1024px) { .main-grid { grid-template-columns:1fr 1fr; } }
+
+/* Disciplinas */
+.disc-list { display:flex; flex-direction:column; }
+.disc-item { padding:.875rem 1.25rem; border-bottom:1px solid #f9fafb; display:flex; flex-direction:column; gap:.5rem; }
+.disc-item:last-child { border-bottom:none; }
+.disc-top  { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.disc-name { font-size:.8rem; font-weight:700; color:#374151; }
+.disc-right{ display:flex; align-items:center; gap:.5rem; }
+.disc-count{ font-size:.75rem; font-weight:700; color:#111827; }
+.disc-tag  { font-size:.65rem; font-weight:700; padding:.15rem .45rem; border-radius:9999px; }
+.tag-green { background:#d1fae5; color:#065f46; }
+.tag-amber { background:#fef3c7; color:#92400e; }
+.prog-bar  { height:.25rem; background:#f3f4f6; border-radius:9999px; overflow:hidden; }
+.prog-fill { height:100%; border-radius:9999px; transition:width .7s ease; }
+
+/* Classes list */
+.class-list { list-style:none; margin:0; padding:0; }
+.class-item { display:flex; align-items:center; gap:.75rem; padding:.75rem 1.25rem; border-bottom:1px solid #f9fafb; }
+.class-item:last-child { border-bottom:none; }
+.class-icon { width:1.75rem; height:1.75rem; border-radius:.5rem; background:#eff6ff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.class-name { font-size:.8rem; font-weight:600; color:#374151; }
+
+/* Status badges */
+.status-badge { display:inline-flex; align-items:center; gap:.35rem; font-size:.65rem; font-weight:700; padding:.2rem .5rem; border-radius:9999px; }
+.status-dot   { width:.4rem; height:.4rem; border-radius:50%; }
+.sb-amber  { background:#fef3c7; color:#92400e; } .dot-amber  { background:#fbbf24; }
+.sb-purple { background:#ede9fe; color:#5b21b6; } .dot-purple { background:#a78bfa; }
+.sb-blue   { background:#dbeafe; color:#1e40af; } .dot-blue   { background:#60a5fa; }
+.sb-indigo { background:#e0e7ff; color:#3730a3; } .dot-indigo { background:#818cf8; }
+.sb-emerald{ background:#d1fae5; color:#065f46; } .dot-emerald{ background:#34d399; }
+.sb-gray   { background:#f3f4f6; color:#6b7280; } .dot-gray   { background:#9ca3af; }
+
+/* Questions */
+.q-list { display:flex; flex-direction:column; gap:0; }
+.q-item { display:flex; gap:.875rem; padding:1rem 1.25rem; border-bottom:1px solid #f9fafb; }
+.q-item:last-child { border-bottom:none; }
+.q-num  { width:1.5rem; height:1.5rem; border-radius:9999px; background:#f3f4f6; font-size:.7rem; font-weight:700; color:#6b7280; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:.1rem; }
+.q-body { flex:1; min-width:0; }
+.q-stem { font-size:.8rem; color:#374151; line-height:1.6; margin-bottom:.625rem; }
+.q-options { display:flex; flex-direction:column; gap:.3rem; }
+.q-opt  { display:flex; align-items:flex-start; gap:.5rem; padding:.35rem .625rem; border-radius:.5rem; background:#f9fafb; font-size:.75rem; color:#6b7280; }
+.q-opt--correct { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.q-opt-label { font-weight:700; flex-shrink:0; width:.875rem; }
+.q-actions { display:flex; flex-direction:column; gap:.25rem; opacity:0; transition:opacity .15s; }
+.q-item:hover .q-actions { opacity:1; }
+.q-action { padding:.375rem; border-radius:.5rem; background:none; border:none; cursor:pointer; color:#9ca3af; transition:color .13s, background .13s; }
+.q-action:hover { color:#3b82f6; background:#eff6ff; }
+
+/* Filter */
+.filter-select { font-size:.72rem; border:1px solid #e5e7eb; border-radius:.625rem; padding:.375rem .625rem; background:white; color:#374151; outline:none; }
+.filter-select:focus { border-color:#93c5fd; }
+
+/* Booklets */
+.booklet-section { padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.875rem; }
+.booklet-tabs    { display:flex; gap:.4rem; flex-wrap:wrap; }
+.booklet-tab     { padding:.4rem .875rem; border-radius:9999px; font-size:.72rem; font-weight:700; border:1.5px solid #e5e7eb; background:white; color:#6b7280; cursor:pointer; transition:all .13s; }
+.booklet-tab--on { border-color:#111827; background:#111827; color:white; }
+.booklet-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+.error-msg  { font-size:.72rem; color:#ef4444; font-weight:600; }
+.student-list { list-style:none; margin:0; padding:0; }
+.student-item { display:flex; align-items:center; justify-content:space-between; padding:.625rem 0; border-bottom:1px solid #f9fafb; }
+.student-item:last-child { border-bottom:none; }
+.student-info { display:flex; flex-direction:column; gap:.1rem; }
+.student-name { font-size:.78rem; font-weight:600; color:#374151; }
+.student-ra   { font-size:.65rem; color:#9ca3af; }
+.student-actions { display:flex; gap:.375rem; }
+.btn-dl-sm { width:1.875rem; height:1.875rem; border-radius:.5rem; background:#f9fafb; border:1px solid #e5e7eb; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#6b7280; transition:all .13s; }
+.btn-dl-sm:hover { background:#eff6ff; color:#3b82f6; border-color:#bfdbfe; }
+.btn-dl-sm:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:1rem; background:rgba(0,0,0,.25); backdrop-filter:blur(2px); }
+.modal-box { background:white; border-radius:1rem; padding:1.5rem; width:100%; max-width:24rem; display:flex; flex-direction:column; gap:.875rem; }
+.modal-box--wide { max-width:32rem; }
+.modal-icon-wrap { width:2.5rem; height:2.5rem; border-radius:.75rem; display:flex; align-items:center; justify-content:center; }
+.modal-title { font-size:1rem; font-weight:800; color:#111827; margin:0; }
+.modal-body  { font-size:.8rem; color:#6b7280; margin:0; line-height:1.5; }
+.modal-actions { display:flex; gap:.5rem; margin-top:.25rem; }
+.class-selector { display:flex; flex-direction:column; gap:.375rem; max-height:14rem; overflow-y:auto; border:1px solid #f3f4f6; border-radius:.75rem; padding:.625rem; }
+.class-check-item { display:flex; align-items:center; gap:.625rem; font-size:.8rem; color:#374151; cursor:pointer; padding:.25rem; }
+.empty-note { font-size:.75rem; color:#9ca3af; text-align:center; padding:.5rem; }
+
+/* Overlay PDF */
+.overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.5); backdrop-filter:blur(4px); }
+.overlay-card { background:white; border-radius:1.25rem; padding:2rem; width:100%; max-width:24rem; display:flex; flex-direction:column; align-items:center; gap:1rem; }
+.overlay-spinner { position:relative; width:5rem; height:5rem; }
+.spin-svg { width:5rem; height:5rem; }
+.overlay-icon { position:absolute; inset:0; margin:auto; width:2rem; height:2rem; color:#3b82f6; }
+.overlay-label { font-size:.9rem; font-weight:700; color:#111827; text-align:center; }
+.overlay-sub   { font-size:.75rem; color:#9ca3af; text-align:center; margin-top:-.5rem; }
+.overlay-timer { display:flex; align-items:center; gap:.5rem; background:#f9fafb; border-radius:.75rem; padding:.625rem 1.25rem; }
+.overlay-timer span { font-size:1.5rem; font-family:monospace; font-weight:700; color:#374151; }
+.overlay-steps { width:100%; display:flex; flex-direction:column; gap:.5rem; }
+.overlay-step  { display:flex; align-items:center; gap:.75rem; padding:.5rem .75rem; border-radius:.75rem; font-size:.75rem; }
+.step-active  { background:#f9fafb; border:1px solid #f3f4f6; color:#374151; font-weight:600; }
+.step-done    { opacity:.5; color:#6b7280; }
+.step-pending { opacity:.3; color:#9ca3af; }
+.step-dot     { width:1.25rem; height:1.25rem; border-radius:9999px; display:flex; align-items:center; justify-content:center; background:#f3f4f6; flex-shrink:0; }
+.dot-pulse    { width:.5rem; height:.5rem; border-radius:50%; background:#3b82f6; animation:blink 1s infinite; }
+.dot-empty    { width:.5rem; height:.5rem; border-radius:50%; background:#d1d5db; }
+.overlay-hint { font-size:.7rem; color:#9ca3af; }
+
+/* Form field in modal */
+.field       { display:flex; flex-direction:column; gap:.375rem; }
+.field-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; }
+.field-input { padding:.5rem .75rem; border:1px solid #e5e7eb; border-radius:.625rem; font-size:.8rem; color:#111827; outline:none; transition:border-color .15s; }
+.field-input:focus { border-color:#93c5fd; box-shadow:0 0 0 3px #eff6ff; }
+.opt-sel-btn { width:2rem; height:2rem; border-radius:9999px; border:2px solid #e5e7eb; font-size:.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .13s; flex-shrink:0; background:white; color:#6b7280; }
+.opt-sel-btn--on { border-color:#10b981; background:#10b981; color:white; }
+.search-icon-sm { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); width:1rem; height:1rem; color:#d1d5db; }
+.pl-8 { padding-left:2rem; }
+
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.45} }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.card-header--toggle {
+  width:100%; background:none; border:none; cursor:pointer;
+  text-align:left; transition:background .13s; border-radius:0;
 }
-.question-content :deep(.katex) {
-  font-size: 1em;
-}
-.question-content :deep(.math-error) {
-  color: #dc3545;
-  font-family: monospace;
-  font-size: 0.8em;
-}
+.card-header--toggle:hover { background:#fafafa; }
+
+.collapse-enter-active { transition:all .25s ease; overflow:hidden; }
+.collapse-leave-active { transition:all .2s ease;  overflow:hidden; }
+.collapse-enter-from, .collapse-leave-to { opacity:0; max-height:0; }
+.collapse-enter-to, .collapse-leave-from { max-height:200rem; }
+.pop-enter-active { transition:all .25s cubic-bezier(.175,.885,.32,1.275); }
+.pop-leave-active { transition:all .15s ease; }
+.pop-enter-from, .pop-leave-to { opacity:0; transform:scale(.9); }
+.modal-enter-active { transition:opacity .18s ease; }
+.modal-leave-active { transition:opacity .15s ease; }
+.modal-enter-from, .modal-leave-to { opacity:0; }
+
+.question-content :deep(img) { max-width:100%; border-radius:.5rem; margin:.25rem 0; display:block; }
+.question-content :deep(.katex-display) { margin:.5rem 0; overflow-x:auto; }
+.question-content :deep(.katex) { font-size:.9em; }
 </style>

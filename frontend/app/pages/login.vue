@@ -1,206 +1,133 @@
-<!-- pages/login.vue -->
 <template>
-  <div class="min-h-screen bg-white flex">
+  <div class="shell">
 
-    <!-- Painel esquerdo — visual -->
-    <div class="hidden lg:flex flex-col justify-between w-[52%] bg-[#0A0A0F] p-12 relative overflow-hidden">
+    <!-- Fundo com grid sutil -->
+    <div class="bg-grid" />
 
-      <!-- Grid de fundo -->
-      <div class="absolute inset-0"
-        style="background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 48px 48px;" />
+    <!-- Card central -->
+    <div class="card" :class="{ ready: mounted }">
 
-      <!-- Orbs de luz -->
-      <div class="absolute top-[-120px] left-[-80px] w-[420px] h-[420px] rounded-full"
-        style="background: radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%);" />
-      <div class="absolute bottom-[-80px] right-[-60px] w-[320px] h-[320px] rounded-full"
-        style="background: radial-gradient(circle, rgba(99,102,241,0.14) 0%, transparent 70%);" />
-
-      <!-- Logo + badge -->
-      <div class="relative z-10">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center">
-            <Icon name="lucide:graduation-cap" class="w-5 h-5 text-white" />
-          </div>
-          <span class="text-white font-bold text-lg tracking-tight">samba edvance</span>
+      <!-- Topo: logo + status -->
+      <div class="card-top">
+        <div class="logo-wrap">
+          <img src="/svg/edvance-logo2.svg" alt="Edvance" class="logo-img" />
         </div>
-        <span class="text-xs font-semibold text-blue-400 tracking-widest uppercase">
-          Plataforma de Simulados
-        </span>
+        <div class="status-pill">
+          <span class="status-dot" />
+          Sistema online
+        </div>
       </div>
 
-      <!-- Centro: headline -->
-      <div class="relative z-10 space-y-6">
-        <div class="space-y-3">
-          <p class="text-white/30 text-xs font-semibold tracking-widest uppercase">Secretaria Municipal de Educação</p>
-          <h1 class="text-4xl font-black text-white leading-[1.15] tracking-tight">
-            Gestão inteligente<br />
-            <span class="text-transparent"
-              style="background: linear-gradient(90deg, #60a5fa, #818cf8); -webkit-background-clip: text; background-clip: text;">
-              de simulados
-            </span>
-          </h1>
-          <p class="text-white/40 text-sm leading-relaxed max-w-xs">
-            Crie, distribua e acompanhe simulados pedagógicos com precisão e eficiência.
+      <!-- Título -->
+      <div class="card-heading">
+        <div class="lock-icon">
+          <Icon name="lucide:lock-keyhole" class="w-5 h-5 text-white" />
+        </div>
+        <h1 class="heading-title">Acesso seguro</h1>
+        <p class="heading-sub">Plataforma de Simulados — samba edvance</p>
+      </div>
+
+      <!-- Formulário -->
+      <div class="form">
+
+        <!-- Usuário -->
+        <div class="field">
+          <label class="field-label">Usuário</label>
+          <div class="input-wrap" :class="focused==='email'?'input-wrap--focus':''">
+            <Icon name="lucide:at-sign" class="input-icon" :class="focused==='email'?'text-blue-500':'text-gray-400'" />
+            <input
+              ref="emailInput"
+              v-model="emailRaw"
+              type="text"
+              inputmode="email"
+              placeholder="nome.sobrenome"
+              :disabled="loading"
+              autocomplete="username"
+              class="field-input"
+              @focus="focused='email'"
+              @blur="onEmailBlur"
+              @keyup.enter="$refs.passwordInput?.focus()"
+            />
+            <!-- Preview do domínio -->
+            <span v-if="emailRaw && !emailRaw.includes('@')" class="domain-hint">@samba.edvance</span>
+          </div>
+          <!-- Mostra o e-mail que será enviado -->
+          <p v-if="emailRaw && !emailRaw.includes('@') && focused!=='email'" class="field-resolved">
+            <Icon name="lucide:check-circle" class="w-3 h-3 text-emerald-500" />
+            {{ resolvedEmail }}
           </p>
         </div>
 
-        <!-- Três pilares -->
-        <div class="space-y-3 pt-2">
-          <div v-for="item in pilares" :key="item.label"
-            class="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.03]">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-              :style="`background: ${item.color}18; border: 1px solid ${item.color}30;`">
-              <Icon :name="item.icon" class="w-4 h-4" :style="`color: ${item.color}`" />
-            </div>
-            <div>
-              <p class="text-white text-xs font-semibold">{{ item.label }}</p>
-              <p class="text-white/30 text-[11px]">{{ item.sub }}</p>
-            </div>
+        <!-- Senha -->
+        <div class="field">
+          <label class="field-label">Senha</label>
+          <div class="input-wrap" :class="focused==='password'?'input-wrap--focus':''">
+            <Icon name="lucide:key-round" class="input-icon" :class="focused==='password'?'text-blue-500':'text-gray-400'" />
+            <input
+              ref="passwordInput"
+              v-model="form.password"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="••••••••"
+              :disabled="loading"
+              autocomplete="current-password"
+              class="field-input pr-10"
+              @focus="focused='password'"
+              @blur="focused=''"
+              @keyup.enter="handleLogin"
+            />
+            <button type="button" class="eye-btn" tabindex="-1" @click="showPassword=!showPassword">
+              <Icon :name="showPassword?'lucide:eye-off':'lucide:eye'" class="w-4 h-4" />
+            </button>
           </div>
+        </div>
+
+        <!-- Erro -->
+        <Transition name="shake">
+          <div v-if="error" class="error-box">
+            <Icon name="lucide:shield-alert" class="w-4 h-4 flex-shrink-0 text-red-400" />
+            <span>{{ error }}</span>
+          </div>
+        </Transition>
+
+        <!-- Botão entrar -->
+        <button
+          class="btn-enter"
+          :class="canSubmit && !loading ? 'btn-enter--on' : 'btn-enter--off'"
+          :disabled="!canSubmit || loading"
+          @click="handleLogin">
+          <template v-if="loading">
+            <svg class="spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/>
+              <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" class="opacity-75"/>
+            </svg>
+            Autenticando...
+          </template>
+          <template v-else>
+            <Icon name="lucide:log-in" class="w-4 h-4" />
+            Entrar
+          </template>
+        </button>
+      </div>
+
+      <!-- Acessos rápidos (dev) -->
+      <div class="dev-section">
+        <div class="dev-divider"><span>Acessos rápidos</span></div>
+        <div class="dev-list">
+          <button v-for="acc in devAccounts" :key="acc.email"
+            class="dev-btn" @click="fillMock(acc)">
+            <div class="dev-icon" :class="acc.iconBg">
+              <Icon :name="acc.icon" class="w-3.5 h-3.5" :class="acc.iconColor" />
+            </div>
+            <span class="dev-label">{{ acc.label }}</span>
+            <Icon name="lucide:arrow-right" class="w-3.5 h-3.5 text-gray-300 ml-auto" />
+          </button>
         </div>
       </div>
 
       <!-- Rodapé -->
-      <div class="relative z-10 flex items-center justify-between">
-        <p class="text-white/20 text-xs">© 2026 samba edvance</p>
-        <div class="flex items-center gap-1.5">
-          <div class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span class="text-white/30 text-xs">Sistema online</span>
-        </div>
-      </div>
+      <p class="card-footer">© 2026 samba edvance · Acesso restrito</p>
     </div>
 
-    <!-- Painel direito — formulário -->
-    <div class="flex-1 flex flex-col items-center justify-center px-6 py-12 relative">
-
-      <!-- Logo mobile -->
-      <div class="lg:hidden flex items-center gap-2 mb-10">
-        <div class="w-8 h-8 rounded-xl bg-gray-900 flex items-center justify-center">
-          <Icon name="lucide:graduation-cap" class="w-4 h-4 text-white" />
-        </div>
-        <span class="font-black text-gray-900 tracking-tight">samba edvance</span>
-      </div>
-
-      <div class="w-full max-w-[360px] space-y-8">
-
-        <!-- Cabeçalho do form -->
-        <div>
-          <h2 class="text-2xl font-black text-gray-900 tracking-tight">Bem-vindo de volta</h2>
-          <p class="text-gray-400 text-sm mt-1">Entre com suas credenciais institucionais</p>
-        </div>
-
-        <!-- Form -->
-        <div class="space-y-4">
-
-          <!-- Email -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold text-gray-500 uppercase tracking-widest">E-mail</label>
-            <div class="relative group">
-              <Icon name="lucide:at-sign"
-                class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200"
-                :class="focused === 'email' ? 'text-blue-500' : 'text-gray-300'" />
-              <input
-                v-model="form.email"
-                type="email"
-                placeholder="seu@email.edu.br"
-                :disabled="loading"
-                autocomplete="email"
-                class="w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl text-sm text-gray-900 placeholder-gray-300 transition-all duration-200 outline-none disabled:opacity-50"
-                :class="focused === 'email'
-                  ? 'border-blue-400 bg-white ring-4 ring-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'"
-                @focus="focused = 'email'"
-                @blur="focused = ''"
-              />
-            </div>
-          </div>
-
-          <!-- Senha -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold text-gray-500 uppercase tracking-widest">Senha</label>
-            <div class="relative group">
-              <Icon name="lucide:key-round"
-                class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200"
-                :class="focused === 'password' ? 'text-blue-500' : 'text-gray-300'" />
-              <input
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'"
-                placeholder="••••••••"
-                :disabled="loading"
-                autocomplete="current-password"
-                class="w-full pl-10 pr-11 py-3 bg-gray-50 border rounded-xl text-sm text-gray-900 placeholder-gray-300 transition-all duration-200 outline-none disabled:opacity-50"
-                :class="focused === 'password'
-                  ? 'border-blue-400 bg-white ring-4 ring-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'"
-                @focus="focused = 'password'"
-                @blur="focused = ''"
-                @keyup.enter="handleLogin"
-              />
-              <button type="button"
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
-                tabindex="-1"
-                @click="showPassword = !showPassword">
-                <Icon :name="showPassword ? 'lucide:eye-off' : 'lucide:eye'" class="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Erro -->
-          <Transition name="shake">
-            <div v-if="error"
-              class="flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
-              <Icon name="lucide:circle-x" class="w-4 h-4 text-red-400 flex-shrink-0" />
-              <p class="text-xs text-red-500 font-medium">{{ error }}</p>
-            </div>
-          </Transition>
-
-          <!-- Botão entrar -->
-          <button
-            :disabled="loading || !form.email || !form.password"
-            class="w-full py-3 rounded-xl text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 relative overflow-hidden"
-            :class="loading || !form.email || !form.password
-              ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-              : 'bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/10 active:scale-[0.98]'"
-            @click="handleLogin">
-            <svg v-if="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-            <Icon v-else name="lucide:log-in" class="w-4 h-4" />
-            {{ loading ? 'Autenticando...' : 'Entrar' }}
-          </button>
-        </div>
-
-        <!-- Divisor -->
-        <div class="flex items-center gap-3">
-          <div class="flex-1 h-px bg-gray-100" />
-          <span class="text-[11px] text-gray-300 font-semibold tracking-widest uppercase">Dev</span>
-          <div class="flex-1 h-px bg-gray-100" />
-        </div>
-
-        <!-- Atalhos dev -->
-        <div class="space-y-2">
-          <p class="text-[11px] text-gray-300 font-semibold uppercase tracking-widest mb-3">Acessos rápidos</p>
-          <button
-            v-for="acc in devAccounts"
-            :key="acc.email"
-            class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-all duration-150 group text-left"
-            @click="fillMock(acc.email, acc.password)">
-            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-              :class="[acc.iconBg, 'group-hover:opacity-90']">
-              <Icon :name="acc.icon" class="w-3.5 h-3.5" :class="acc.iconColor" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-bold text-gray-700">{{ acc.label }}</p>
-              <p class="text-[11px] text-gray-400 truncate">{{ acc.email }}</p>
-            </div>
-            <Icon name="lucide:arrow-right"
-              class="w-3.5 h-3.5 text-gray-200 group-hover:text-gray-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-          </button>
-        </div>
-
-      </div>
-    </div>
   </div>
 </template>
 
@@ -209,51 +136,66 @@ definePageMeta({ layout: false })
 
 const { login, user, getDashboardRoute } = useAuth()
 
-const form         = reactive({ email: '', password: '' })
+const DEFAULT_DOMAIN = '@samba.edvance'
+
+const emailRaw     = ref('')
+const form         = reactive({ password: '' })
 const loading      = ref(false)
 const error        = ref('')
 const showPassword = ref(false)
 const focused      = ref('')
+const mounted      = ref(false)
 
-const pilares = [
-  { icon: 'lucide:file-text',     label: 'Criação de simulados',    sub: 'Wizards guiados passo a passo',  color: '#60a5fa' },
-  { icon: 'lucide:users',         label: 'Gestão de professores',   sub: 'Atribuição e acompanhamento',    color: '#818cf8' },
-  { icon: 'lucide:bar-chart-2',   label: 'Resultados em tempo real', sub: 'Gabaritos e relatórios',         color: '#34d399' },
-]
+const emailInput    = ref<HTMLInputElement | null>(null)
+const passwordInput = ref<HTMLInputElement | null>(null)
+
+onMounted(async () => {
+  await nextTick()
+  setTimeout(() => { mounted.value = true }, 40)
+  setTimeout(() => { emailInput.value?.focus() }, 200)
+})
+
+// E-mail resolvido: adiciona domínio padrão se não tiver @
+const resolvedEmail = computed(() => {
+  const raw = emailRaw.value.trim()
+  if (!raw) return ''
+  return raw.includes('@') ? raw : raw + DEFAULT_DOMAIN
+})
+
+const canSubmit = computed(() => resolvedEmail.value !== '' && form.password !== '')
+
+function onEmailBlur() {
+  focused.value = ''
+  // Se digitou com @, mantém como está; se não, não precisa fazer nada — resolvedEmail cuida
+}
 
 const devAccounts = [
-  { label: 'Root / Admin',     email: 'admin@samba.local',           password: 'admin123', icon: 'lucide:shield',         iconBg: 'bg-gray-900',    iconColor: 'text-white' },
-  { label: 'Coordenador',      email: 'coord@samba.local',           password: 'coord123', icon: 'lucide:layout-dashboard', iconBg: 'bg-blue-50',    iconColor: 'text-blue-600' },
-  { label: 'Prof. Matemática', email: 'prof.matematica@samba.local', password: 'prof123',  icon: 'lucide:book-open',      iconBg: 'bg-orange-50',   iconColor: 'text-orange-500' },
+  { label:'Root / Admin',      email:'admin@samba.local',           password:'admin123', icon:'lucide:shield',          iconBg:'bg-gray-900',   iconColor:'text-white'      },
+  { label:'Coordenador',       email:'coord@samba.local',           password:'coord123', icon:'lucide:layout-dashboard',iconBg:'bg-blue-50',    iconColor:'text-blue-600'   },
+  { label:'Prof. Matemática',  email:'prof.matematica@samba.local', password:'prof123',  icon:'lucide:book-open',       iconBg:'bg-orange-50',  iconColor:'text-orange-500' },
 ]
 
-function fillMock(email: string, password: string) {
-  form.email    = email
-  form.password = password
-  error.value   = ''
+function fillMock(acc: typeof devAccounts[0]) {
+  emailRaw.value  = acc.email
+  form.password   = acc.password
+  error.value     = ''
 }
 
 async function handleLogin() {
-  if (!form.email || !form.password) {
-    error.value = 'Preencha e-mail e senha.'
-    return
-  }
+  if (!canSubmit.value) return
   loading.value = true
   error.value   = ''
-
-  const result = await login(form.email, form.password)
+  const result  = await login(resolvedEmail.value, form.password)
   loading.value = false
 
   if (result === 'error') {
     error.value = 'Credenciais inválidas. Verifique e tente novamente.'
     return
   }
-
   if (result === 'change_password') {
     await navigateTo('/trocar-senha')
     return
   }
-
   if (user.value) {
     await navigateTo(getDashboardRoute(user.value.role))
   }
@@ -261,14 +203,290 @@ async function handleLogin() {
 </script>
 
 <style scoped>
-.shake-enter-active {
-  animation: shake 0.35s ease;
+/* ── Shell ── */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
 }
+
+/* Grade de fundo */
+.bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+
+/* Orb de luz azul-escuro */
+.shell::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(37,99,235,.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── Card ── */
+.card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  box-shadow: 0 20px 48px rgba(0,0,0,.1), 0 0 0 1px rgba(0,0,0,.03);
+  opacity: 0;
+  transform: translateY(16px) scale(.98);
+  transition: opacity .45s ease, transform .45s cubic-bezier(.22,1,.36,1);
+}
+.card.ready { opacity: 1; transform: translateY(0) scale(1); }
+
+/* ── Topo ── */
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo-wrap { display: flex; align-items: center; }
+.logo-img  { height: 1.75rem; width: auto; }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .25rem .75rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 9999px;
+  font-size: .65rem;
+  font-weight: 700;
+  color: #16a34a;
+  letter-spacing: .04em;
+}
+.status-dot {
+  width: .4rem;
+  height: .4rem;
+  border-radius: 50%;
+  background: #34d399;
+  animation: pulse-dot 2s ease infinite;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── Heading ── */
+.card-heading { display: flex; flex-direction: column; align-items: center; gap: .75rem; text-align: center; }
+.lock-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(37,99,235,.4);
+}
+.heading-title { font-size: 1.35rem; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -.02em; }
+.heading-sub   { font-size: .75rem; color: #64748b; margin: 0; }
+
+/* ── Form ── */
+.form { display: flex; flex-direction: column; gap: 1rem; }
+
+.field { display: flex; flex-direction: column; gap: .4rem; }
+.field-label {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: #64748b;
+}
+
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: .75rem;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.input-wrap--focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+  background: white;
+}
+.input-icon {
+  position: absolute;
+  left: .875rem;
+  width: 1rem;
+  height: 1rem;
+  pointer-events: none;
+  transition: color .15s;
+  flex-shrink: 0;
+}
+.field-input {
+  width: 100%;
+  padding: .75rem .875rem .75rem 2.5rem;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: .875rem;
+  color: #0f172a;
+  caret-color: #3b82f6;
+}
+.field-input::placeholder { color: #cbd5e1; }
+.field-input:disabled { opacity: .5; }
+
+/* Hint de domínio no input */
+.domain-hint {
+  position: absolute;
+  right: .875rem;
+  font-size: .75rem;
+  color: #94a3b8;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* E-mail resolvido */
+.field-resolved {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .68rem;
+  color: #64748b;
+  margin: 0;
+  padding-left: .25rem;
+}
+
+.eye-btn {
+  position: absolute;
+  right: .75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: .25rem;
+  transition: color .13s;
+}
+.eye-btn:hover { color: #475569; }
+
+/* Erro */
+.error-box {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  padding: .625rem .875rem;
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.25);
+  border-radius: .75rem;
+  font-size: .75rem;
+  color: #fca5a5;
+  font-weight: 500;
+}
+
+/* Botão entrar */
+.btn-enter {
+  width: 100%;
+  padding: .8rem;
+  border-radius: .875rem;
+  border: none;
+  font-size: .875rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  cursor: pointer;
+  transition: all .15s;
+  margin-top: .25rem;
+}
+.btn-enter--on {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  color: white;
+  box-shadow: 0 8px 20px rgba(37,99,235,.35);
+}
+.btn-enter--on:hover  { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(37,99,235,.4); }
+.btn-enter--on:active { transform: scale(.98); }
+.btn-enter--off { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+/* ── Dev section ── */
+.dev-section { display: flex; flex-direction: column; gap: .875rem; }
+.dev-divider {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: .62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: #94a3b8;
+}
+.dev-divider::before, .dev-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+.dev-list { display: flex; flex-direction: column; gap: .375rem; }
+.dev-btn {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .625rem .875rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: .75rem;
+  cursor: pointer;
+  transition: background .13s, border-color .13s;
+  text-align: left;
+}
+.dev-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.dev-icon {
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: .5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dev-label { font-size: .78rem; font-weight: 600; color: #374151; }
+
+/* ── Rodapé ── */
+.card-footer {
+  font-size: .65rem;
+  color: #94a3b8;
+  text-align: center;
+  margin: 0;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 1rem;
+}
+
+/* ── Animações ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; }
+
+.shake-enter-active { animation: shake .35s ease; }
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%       { transform: translateX(-6px); }
-  40%       { transform: translateX(6px); }
-  60%       { transform: translateX(-4px); }
-  80%       { transform: translateX(4px); }
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-5px); }
+  40%     { transform: translateX(5px); }
+  60%     { transform: translateX(-3px); }
+  80%     { transform: translateX(3px); }
 }
 </style>
