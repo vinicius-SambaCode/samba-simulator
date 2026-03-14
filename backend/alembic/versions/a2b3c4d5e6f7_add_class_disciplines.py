@@ -5,7 +5,8 @@ Revises: f1a2b3c4d5e6
 Create Date: 2026-03-13
 
 Tabela N:N entre school_classes e disciplines.
-Permite vincular quais disciplinas pertencem a cada turma.
+NOTA: a tabela class_disciplines ja e criada pela migration e5f6a7b8c9d0.
+Esta migration e mantida apenas para preservar a cadeia de revisoes.
 """
 
 from alembic import op
@@ -18,17 +19,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # IF NOT EXISTS — tabela pode já existir se foi criada manualmente antes desta migration
-    op.execute("""
-        CREATE TABLE IF NOT EXISTS class_disciplines (
-            class_id      INTEGER NOT NULL,
-            discipline_id INTEGER NOT NULL,
-            PRIMARY KEY (class_id, discipline_id),
-            FOREIGN KEY (class_id)      REFERENCES school_classes (id) ON DELETE CASCADE,
-            FOREIGN KEY (discipline_id) REFERENCES disciplines (id)    ON DELETE CASCADE
-        )
-    """)
+    # Tabela ja criada por e5f6a7b8c9d0 — no-op intencional
+    pass
 
 
 def downgrade() -> None:
-    op.drop_table('class_disciplines')
+    # Nao derruba a tabela pois ela nao foi criada aqui
+    pass
